@@ -1,0 +1,1353 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
+  <title>Saurav Tracks · Revision Tracker</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+  <style>
+    *, *::before, *::after {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      font-family: system-ui, 'Segoe UI', Roboto, sans-serif;
+    }
+
+    :root {
+      --bg: #f8fafc;
+      --surface: #ffffff;
+      --text: #0b1e33;
+      --text-light: #475569;
+      --border: #e2e8f0;
+      --accent: #2563eb;
+      --accent-soft: #dbeafe;
+      --shadow: 0 2px 8px rgba(0,0,0,0.06);
+      --row-hover: #f9f9ff;
+      --rev-default-bg: #eef2ff;
+      --rev-default-text: #1e293b;
+      --completed-bg: #dcfce7;
+      --completed-text: #166534;
+      --today-bg: #fef9c3;
+      --today-text: #92400e;
+      --overdue-bg: #fee2e2;
+      --overdue-text: #991b1b;
+      --sticky-bg: rgba(255,255,255,0.92);
+      --header-height: 60px;
+      --search-height: 72px;
+    }
+
+    body.dark {
+      --bg: #0b1120;
+      --surface: #1e293b;
+      --text: #f1f5f9;
+      --text-light: #94a3b8;
+      --border: #334155;
+      --accent: #3b82f6;
+      --accent-soft: #1e3a8a;
+      --shadow: 0 4px 12px rgba(0,0,0,0.4);
+      --row-hover: #263449;
+      --rev-default-bg: #1e293b;
+      --rev-default-text: #cbd5e1;
+      --completed-bg: #14532d;
+      --completed-text: #bbf7d0;
+      --today-bg: #713f12;
+      --today-text: #fde68a;
+      --overdue-bg: #7f1d1d;
+      --overdue-text: #fecaca;
+      --sticky-bg: rgba(30,41,59,0.95);
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      transition: background 0.2s, color 0.2s;
+    }
+
+    .app {
+      max-width: 1700px;
+      margin: 0 auto;
+      padding: 16px 16px 48px;
+    }
+
+    /* ───── TOP BAR ───── */
+    .top-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    h1 {
+      font-weight: 800;
+      font-size: clamp(1.4rem, 4vw, 2rem);
+      letter-spacing: -0.02em;
+      background: linear-gradient(145deg, #2563eb, #7c3aed);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      white-space: nowrap;
+    }
+
+    .top-bar-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    /* ───── STICKY SEARCH ───── */
+    .sticky-search {
+      position: sticky;
+      top: 0;
+      z-index: 40;
+      background: var(--sticky-bg);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      padding: 10px 16px;
+      margin-bottom: 20px;
+      border-radius: 48px;
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow);
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .search-input-wrapper {
+      flex: 2 1 220px;
+      display: flex;
+      align-items: center;
+      background: var(--surface);
+      border-radius: 40px;
+      border: 1.5px solid var(--border);
+      padding: 4px 4px 4px 16px;
+      min-height: 44px;
+    }
+
+    .search-input-wrapper input {
+      border: none;
+      background: transparent;
+      padding: 8px 6px;
+      font-size: 0.95rem;
+      width: 100%;
+      outline: none;
+      color: var(--text);
+      min-height: 36px;
+    }
+
+    .search-input-wrapper input::placeholder {
+      color: var(--text-light);
+    }
+
+    .date-filter {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--surface);
+      padding: 4px 14px;
+      border-radius: 40px;
+      border: 1.5px solid var(--border);
+      min-height: 44px;
+      flex: 1 1 180px;
+    }
+
+    .date-filter label {
+      font-weight: 500;
+      color: var(--text-light);
+      white-space: nowrap;
+      font-size: 0.9rem;
+    }
+
+    .date-filter input[type="date"] {
+      border: none;
+      background: transparent;
+      padding: 6px 0;
+      color: var(--text);
+      outline: none;
+      font-size: 0.9rem;
+      min-height: 36px;
+      flex: 1;
+    }
+
+    /* ───── BUTTONS ───── */
+    button {
+      background: var(--accent);
+      color: white;
+      font-weight: 600;
+      border: none;
+      border-radius: 40px;
+      padding: 10px 20px;
+      font-size: 0.9rem;
+      cursor: pointer;
+      box-shadow: var(--shadow);
+      transition: opacity 0.15s, transform 0.1s;
+      white-space: nowrap;
+      min-height: 44px;
+      min-width: 44px;
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+    }
+
+    button:active { transform: scale(0.97); }
+
+    button.secondary {
+      background: transparent;
+      color: var(--text);
+      border: 1.5px solid var(--border);
+    }
+
+    button.small {
+      padding: 8px 16px;
+      font-size: 0.85rem;
+      min-height: 40px;
+    }
+
+    .theme-toggle {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 1rem;
+    }
+
+    .theme-toggle label {
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 1rem;
+    }
+
+    /* ───── SAVE SECTION ───── */
+    .save-section {
+      background: var(--surface);
+      border-radius: 24px;
+      padding: 18px 20px;
+      margin-bottom: 20px;
+      border: 1px solid var(--border);
+      display: flex;
+      flex-wrap: wrap;
+      align-items: flex-end;
+      gap: 14px;
+      box-shadow: var(--shadow);
+    }
+
+    .input-group {
+      flex: 1 1 190px;
+      min-width: 150px;
+    }
+
+    .input-group label {
+      display: block;
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--text-light);
+      margin-bottom: 6px;
+    }
+
+    .input-group input {
+      width: 100%;
+      padding: 11px 16px;
+      border-radius: 30px;
+      border: 1.5px solid var(--border);
+      background: var(--bg);
+      color: var(--text);
+      font-size: 0.95rem;
+      outline: none;
+      min-height: 44px;
+    }
+
+    .input-group input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-soft);
+    }
+
+    /* ───── SUMMARY BAR ───── */
+    .summary-bar {
+      margin: 0 0 14px;
+      padding: 10px 18px;
+      background: var(--accent-soft);
+      border-radius: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 10px;
+      font-size: 0.88rem;
+      font-weight: 500;
+    }
+
+    /* ───── TABLE WRAPPER ───── */
+    .table-outer {
+      border-radius: 20px;
+      border: 1px solid var(--border);
+      overflow: hidden;
+      box-shadow: var(--shadow);
+    }
+
+    .table-scroll {
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .table-inner {
+      min-width: 1100px;
+    }
+
+    /* ───── TOPICS HEADER ───── */
+    .topics-header {
+      display: grid;
+      grid-template-columns: 160px 110px repeat(7, minmax(140px, 1fr));
+      background: var(--surface);
+      padding: 10px 16px;
+      font-weight: 700;
+      font-size: 0.72rem;
+      color: var(--text-light);
+      border-bottom: 2px solid var(--border);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      position: relative;
+      z-index: 2;
+    }
+
+    .header-cell {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 4px 2px;
+      text-align: center;
+    }
+
+    .header-rev-label { font-weight: 700; }
+    .header-instruction {
+      font-size: 0.62rem;
+      font-weight: 400;
+      opacity: 0.75;
+      white-space: nowrap;
+    }
+
+    /* ───── TOPIC ROWS ───── */
+    .topics-rows {
+      position: relative;
+      z-index: 1;
+    }
+
+    .topic-row {
+      display: grid;
+      grid-template-columns: 160px 110px repeat(7, minmax(140px, 1fr));
+      align-items: stretch;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      transition: background 0.1s;
+    }
+
+    .topic-row:last-child { border-bottom: none; }
+
+    .topic-row:hover { background: var(--row-hover); }
+
+    .cell {
+      padding: 10px 8px;
+      display: flex;
+      align-items: center;
+      word-break: break-word;
+      border-right: 1px solid var(--border);
+      font-size: 0.88rem;
+    }
+    .cell:last-child { border-right: none; }
+
+    .topic-name-cell {
+      font-weight: 650;
+      gap: 5px;
+      flex-wrap: wrap;
+    }
+
+    .lecture-cell { font-weight: 500; font-size: 0.82rem; }
+
+    /* ───── REVISION BOX ───── */
+    .rev-box {
+      background: var(--rev-default-bg);
+      color: var(--rev-default-text);
+      border-radius: 16px;
+      padding: 8px 8px 6px;
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      border: 1px solid var(--border);
+      font-size: 0.75rem;
+      line-height: 1.3;
+      transition: all 0.1s;
+    }
+
+    .rev-box.completed {
+      background: var(--completed-bg);
+      color: var(--completed-text);
+      border-left: 4px solid #22c55e;
+    }
+    .rev-box.today {
+      background: var(--today-bg);
+      color: var(--today-text);
+      border-left: 4px solid #eab308;
+    }
+    .rev-box.overdue {
+      background: var(--overdue-bg);
+      color: var(--overdue-text);
+      border-left: 4px solid #ef4444;
+    }
+
+    .rev-date { font-weight: 700; font-size: 0.78rem; }
+    .rev-short {
+      font-size: 0.65rem;
+      opacity: 0.9;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .rev-check {
+      margin-top: 2px;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .rev-check input[type="checkbox"] {
+      width: 20px;
+      height: 20px;
+      accent-color: var(--accent);
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+
+    .action-icons {
+      display: flex;
+      gap: 3px;
+      margin-left: auto;
+      flex-shrink: 0;
+    }
+    .action-icons button {
+      padding: 5px 9px;
+      font-size: 0.75rem;
+      background: transparent;
+      color: var(--text);
+      box-shadow: none;
+      border: 1px solid var(--border);
+      min-height: 36px;
+      border-radius: 20px;
+    }
+
+    .empty-state {
+      padding: 40px 20px;
+      text-align: center;
+      color: var(--text-light);
+      font-size: 1rem;
+      background: var(--surface);
+    }
+
+    /* ───── MODAL ───── */
+    .modal-overlay {
+      position: fixed;
+      top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(0,0,0,0.45);
+      backdrop-filter: blur(4px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      padding: 16px;
+    }
+    .modal-content {
+      background: var(--surface);
+      border-radius: 28px;
+      padding: 24px;
+      max-width: 680px;
+      width: 100%;
+      max-height: 85vh;
+      overflow-y: auto;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.25);
+      border: 1px solid var(--border);
+    }
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 18px;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .modal-header h3 { font-size: 1.05rem; }
+    .task-item {
+      padding: 12px;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.9rem;
+      line-height: 1.5;
+    }
+    .task-item:last-child { border-bottom: none; }
+
+    /* ───── PRINT CONTAINER ───── */
+    #printTasksContainer { display: none; }
+
+    /* ───── PRINT / PDF STYLES ───── */
+    @media print {
+      body, body.dark {
+        background: white !important;
+        color: black !important;
+        padding: 0 !important;
+      }
+      .app { padding: 0 !important; }
+      .sticky-search,
+      .save-section,
+      .summary-bar,
+      .top-bar-actions,
+      .action-icons,
+      .theme-toggle,
+      .modal-overlay {
+        display: none !important;
+      }
+      h1 { color: #1e293b !important; background: none !important; -webkit-text-fill-color: #1e293b !important; }
+      .table-outer { border: none !important; box-shadow: none !important; overflow: visible !important; }
+      .table-scroll { overflow: visible !important; }
+      .table-inner { min-width: unset !important; width: 100% !important; }
+      .topics-header {
+        background: #e2e8f0 !important;
+        color: #334155 !important;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+        border-bottom: 2px solid #94a3b8 !important;
+        grid-template-columns: 130px 95px repeat(7, 1fr) !important;
+        font-size: 0.65rem !important;
+      }
+      .topic-row {
+        break-inside: avoid !important;
+        page-break-inside: avoid !important;
+        border-bottom: 1px solid #cbd5e1 !important;
+        grid-template-columns: 130px 95px repeat(7, 1fr) !important;
+      }
+      .rev-box {
+        border: 1px solid #94a3b8 !important;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+        font-size: 0.65rem !important;
+        padding: 4px !important;
+      }
+      .rev-box.completed { background: #dcfce7 !important; color: #166534 !important; }
+      .rev-box.today     { background: #fef9c3 !important; color: #92400e !important; }
+      .rev-box.overdue   { background: #fee2e2 !important; color: #991b1b !important; }
+      .cell { padding: 6px 4px !important; font-size: 0.7rem !important; }
+      .rev-date { font-size: 0.65rem !important; }
+      .rev-check input[type="checkbox"] { width: 14px !important; height: 14px !important; }
+      @page { margin: 12mm 8mm; size: A4 landscape; }
+      #printTasksContainer { display: block !important; }
+      .app > *:not(#printTasksContainer):not(.top-bar):not(.table-outer) { display: none !important; }
+    }
+
+    /* ───── MOBILE / TABLET RESPONSIVE ───── */
+    @media (max-width: 900px) {
+      .app { padding: 12px 12px 40px; }
+
+      .sticky-search {
+        border-radius: 24px;
+        padding: 10px 14px;
+        gap: 8px;
+      }
+
+      .date-filter { flex: 1 1 160px; }
+
+      .save-section { padding: 16px; gap: 12px; }
+
+      .input-group { flex: 1 1 140px; }
+    }
+
+    @media (max-width: 640px) {
+      .app { padding: 10px 10px 36px; }
+
+      h1 { font-size: 1.3rem; }
+
+      .sticky-search {
+        border-radius: 18px;
+        padding: 10px 12px;
+        position: relative;
+        top: 0;
+        margin-bottom: 14px;
+      }
+
+      .search-input-wrapper { flex: 1 1 100%; }
+      .date-filter { flex: 1 1 100%; }
+
+      .save-section {
+        border-radius: 18px;
+        padding: 14px;
+        flex-direction: column;
+        gap: 10px;
+      }
+      .input-group { flex: 1 1 100%; min-width: unset; }
+      .save-section button { width: 100%; }
+
+      .summary-bar {
+        border-radius: 18px;
+        padding: 10px 14px;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+      }
+      .summary-bar button { width: 100%; }
+
+      .top-bar { flex-direction: column; align-items: flex-start; }
+      .top-bar-actions { flex-wrap: wrap; gap: 6px; }
+      .top-bar-actions button { flex: 1 1 auto; }
+
+      .modal-content { padding: 18px 14px; border-radius: 20px; }
+      .modal-header { flex-direction: column; align-items: flex-start; }
+    }
+
+    /* ───── SCROLLBAR STYLING ───── */
+    .table-scroll::-webkit-scrollbar { height: 6px; }
+    .table-scroll::-webkit-scrollbar-track { background: var(--bg); }
+    .table-scroll::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+    /* ───── PDF LOADING STATE ───── */
+    .pdf-loading {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      opacity: 0.7;
+      pointer-events: none;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .pdf-spinner {
+      width: 14px; height: 14px;
+      border: 2px solid rgba(255,255,255,0.4);
+      border-top-color: white;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      display: inline-block;
+    }
+  </style>
+</head>
+<body>
+<div class="app">
+
+  <!-- TOP BAR -->
+  <div class="top-bar">
+    <h1>📘 Saurav Tracks</h1>
+    <div class="top-bar-actions">
+      <div class="theme-toggle">
+        <span>☀️</span>
+        <label><input type="checkbox" id="darkModeToggle"> 🌙</label>
+      </div>
+      <button id="exportAllPdfBtn" class="secondary small">📄 Export All PDF</button>
+      <button id="exportJsonBtn" class="secondary small">⬇ JSON</button>
+    </div>
+  </div>
+
+  <!-- STICKY SEARCH -->
+  <div class="sticky-search">
+    <div class="search-input-wrapper">
+      <input type="text" id="searchInput" placeholder="🔍 Search topic or date…" autocomplete="off">
+    </div>
+    <div class="date-filter">
+      <label>📅</label>
+      <input type="date" id="filterDateInput">
+    </div>
+    <button id="clearSearchBtn" class="secondary small">✕ Clear</button>
+    <button id="openDateTasksBtn" class="small secondary">📋 Date tasks</button>
+  </div>
+
+  <!-- SAVE INPUT SECTION -->
+  <div class="save-section">
+    <div class="input-group">
+      <label>Topic Name</label>
+      <input type="text" id="topicNameInput" placeholder="e.g. Thermodynamics">
+    </div>
+    <div class="input-group">
+      <label>Lecture Day</label>
+      <input type="date" id="lectureDateInput">
+    </div>
+    <button id="saveTopicBtn">💾 Save Topic</button>
+    <button id="cancelEditBtn" class="secondary small" style="display:none;">✕ Cancel</button>
+  </div>
+
+  <!-- SUMMARY BAR -->
+  <div id="summaryBar" class="summary-bar">
+    <span id="summaryText">📋 Select a date to see revision tasks</span>
+    <button id="exportFilteredPdfBtn" class="small">📑 Export tasks PDF</button>
+  </div>
+
+  <!-- TOPICS TABLE -->
+  <div class="table-outer">
+    <div class="table-scroll">
+      <div class="table-inner">
+        <!-- Header -->
+        <div class="topics-header">
+          <div class="header-cell">Topic</div>
+          <div class="header-cell">Lecture Day</div>
+          <div class="header-cell"><span class="header-rev-label">R1 +1d</span><span class="header-instruction">Theory</span></div>
+          <div class="header-cell"><span class="header-rev-label">R2 +3d</span><span class="header-instruction">Theory+Q</span></div>
+          <div class="header-cell"><span class="header-rev-label">R3 +7d</span><span class="header-instruction">Q+Theory</span></div>
+          <div class="header-cell"><span class="header-rev-label">R4 +30d</span><span class="header-instruction">Weak pts</span></div>
+          <div class="header-cell"><span class="header-rev-label">R5 +90d</span><span class="header-instruction">Full</span></div>
+          <div class="header-cell"><span class="header-rev-label">R6 +190d</span><span class="header-instruction">Full</span></div>
+          <div class="header-cell"><span class="header-rev-label">R7 +300d</span><span class="header-instruction">Final</span></div>
+        </div>
+        <!-- Rows -->
+        <div id="topicsRows" class="topics-rows"></div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /.app -->
+
+<!-- MODAL: date tasks -->
+<div id="dateTasksModal" class="modal-overlay" style="display:none;">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h3 id="modalDateTitle">Tasks for …</h3>
+      <button id="closeModalBtn" class="secondary small">✕ Close</button>
+    </div>
+    <div id="modalTasksList"></div>
+    <div style="margin-top:18px; display:flex; gap:10px; flex-wrap:wrap;">
+      <button id="exportModalPdfBtn" class="small">📑 Export as PDF</button>
+    </div>
+  </div>
+</div>
+
+<div id="printTasksContainer"></div>
+
+<script>
+(function () {
+  "use strict";
+
+  const STORAGE_KEY = 'saurav_tracks_v9';
+  let topics = [];
+  let editingId = null;
+  let currentModalDate = null;
+
+  const REVISION_RULES = [
+    { days: 1,   short: 'Theory',    full: 'Revise only theory' },
+    { days: 3,   short: 'Theory+Q',  full: 'Revise theory + attempt questions' },
+    { days: 7,   short: 'Q+Theory',  full: 'Revise questions + theory + full revision' },
+    { days: 30,  short: 'Weak pts',  full: 'Revise weak points, notes, important questions' },
+    { days: 90,  short: 'Full',      full: 'Revise whole theory + questions' },
+    { days: 190, short: 'Full',      full: 'Revise whole theory + questions' },
+    { days: 300, short: 'Final',     full: 'Revise full theory + all questions' }
+  ];
+
+  /* ── DOM refs ── */
+  const searchInput         = document.getElementById('searchInput');
+  const filterDateInput     = document.getElementById('filterDateInput');
+  const clearSearchBtn      = document.getElementById('clearSearchBtn');
+  const openDateTasksBtn    = document.getElementById('openDateTasksBtn');
+  const topicNameInput      = document.getElementById('topicNameInput');
+  const lectureDateInput    = document.getElementById('lectureDateInput');
+  const saveBtn             = document.getElementById('saveTopicBtn');
+  const cancelBtn           = document.getElementById('cancelEditBtn');
+  const topicsRows          = document.getElementById('topicsRows');
+  const summaryText         = document.getElementById('summaryText');
+  const exportFilteredPdfBtn= document.getElementById('exportFilteredPdfBtn');
+  const exportAllPdfBtn     = document.getElementById('exportAllPdfBtn');
+  const exportJsonBtn       = document.getElementById('exportJsonBtn');
+  const darkToggle          = document.getElementById('darkModeToggle');
+  const modal               = document.getElementById('dateTasksModal');
+  const modalDateTitle      = document.getElementById('modalDateTitle');
+  const modalTasksList      = document.getElementById('modalTasksList');
+  const closeModalBtn       = document.getElementById('closeModalBtn');
+  const exportModalPdfBtn   = document.getElementById('exportModalPdfBtn');
+
+  /* ── Helpers ── */
+  function toISODate(d) {
+    // Reliable ISO date from a Date object (no timezone shift)
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  }
+
+  function getTodayISO() { return toISODate(new Date()); }
+
+  function formatDate(iso) {
+    if (!iso) return '';
+    // Parse without timezone issues
+    const [y, m, d] = iso.split('-').map(Number);
+    const date = new Date(y, m - 1, d);
+    return date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+  }
+
+  function fullDateStr(iso) {
+    if (!iso) return '';
+    const [y, m, d] = iso.split('-').map(Number);
+    const date = new Date(y, m - 1, d);
+    return date.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+  }
+
+  function addDaysToISO(iso, days) {
+    const [y, m, d] = iso.split('-').map(Number);
+    const date = new Date(y, m - 1, d);
+    date.setDate(date.getDate() + days);
+    return toISODate(date);
+  }
+
+  function calculateRevisions(lectureISO) {
+    return REVISION_RULES.map((rule, idx) => ({
+      revisionNumber:   idx + 1,
+      revisionDate:     addDaysToISO(lectureISO, rule.days),
+      instruction:      rule.full,
+      shortInstruction: rule.short,
+      completed:        false
+    }));
+  }
+
+  function generateId() { return Date.now() + '-' + Math.random().toString(36).slice(2); }
+
+  /* ── Storage ── */
+  function loadTopics() {
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY);
+      topics = stored ? JSON.parse(stored) : [];
+    } catch (e) { topics = []; }
+    topics = (Array.isArray(topics) ? topics : [])
+      .filter(Boolean)
+      .map(t => { if (!t.id) t.id = generateId(); return t; });
+  }
+
+  function saveToStorage() {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(topics));
+  }
+
+  /* ── Form ── */
+  function resetForm() {
+    topicNameInput.value  = '';
+    lectureDateInput.value = getTodayISO();
+    editingId = null;
+    saveBtn.textContent = '💾 Save Topic';
+    cancelBtn.style.display = 'none';
+  }
+
+  /* ── Filter ── */
+  function getFilteredTopics() {
+    const term = searchInput.value.trim().toLowerCase();
+    const fd   = filterDateInput.value;
+    return topics.filter(t => {
+      if (term) {
+        const nameMatch = t.topicName.toLowerCase().includes(term);
+        const dateMatch = t.lectureDate.includes(term) ||
+                          t.revisions.some(r => r.revisionDate.includes(term));
+        if (!nameMatch && !dateMatch) return false;
+      }
+      if (fd) {
+        const hasMatch = t.lectureDate === fd ||
+                         t.revisions.some(r => r.revisionDate === fd);
+        if (!hasMatch) return false;
+      }
+      return true;
+    });
+  }
+
+  /* ── Rev box class ── */
+  function getRevBoxClass(rev, todayISO) {
+    if (rev.completed)                                   return 'completed';
+    if (rev.revisionDate === todayISO)                   return 'today';
+    if (rev.revisionDate < todayISO && !rev.completed)   return 'overdue';
+    return '';
+  }
+
+  /* ── Render one row ── */
+  function renderTopicRow(topic, todayISO) {
+    let revHtml = '';
+    topic.revisions.forEach(rev => {
+      const cls = getRevBoxClass(rev, todayISO);
+      revHtml += `
+        <div class="cell">
+          <div class="rev-box ${cls}" title="${rev.instruction}">
+            <div class="rev-date">${formatDate(rev.revisionDate)}</div>
+            <div class="rev-short">${rev.shortInstruction}</div>
+            <div class="rev-check">
+              <input type="checkbox"
+                data-topic="${topic.id}"
+                data-revnum="${rev.revisionNumber}"
+                ${rev.completed ? 'checked' : ''}
+                aria-label="R${rev.revisionNumber} completed">
+              <span>${rev.completed ? '✔' : '○'}</span>
+            </div>
+          </div>
+        </div>`;
+    });
+
+    return `
+      <div class="topic-row" data-topic-id="${topic.id}">
+        <div class="cell topic-name-cell">
+          <span>${topic.topicName}</span>
+          <span class="action-icons">
+            <button class="edit-btn"   data-id="${topic.id}" title="Edit">✏️</button>
+            <button class="delete-btn" data-id="${topic.id}" title="Delete">🗑️</button>
+          </span>
+        </div>
+        <div class="cell lecture-cell">${formatDate(topic.lectureDate)}</div>
+        ${revHtml}
+      </div>`;
+  }
+
+  /* ── Render all ── */
+  function renderAllRows() {
+    const filtered = getFilteredTopics();
+    const todayISO = getTodayISO();
+    if (filtered.length === 0) {
+      topicsRows.innerHTML = '<div class="empty-state">✨ No topics yet — add one above.</div>';
+    } else {
+      topicsRows.innerHTML = filtered.map(t => renderTopicRow(t, todayISO)).join('');
+    }
+    attachRowEvents();
+    updateSummaryAndHighlight();
+  }
+
+  /* ── Row events ── */
+  function attachRowEvents() {
+    topicsRows.querySelectorAll('input[type=checkbox]').forEach(cb => {
+      cb.addEventListener('change', handleCheckboxChange);
+    });
+    topicsRows.querySelectorAll('.edit-btn').forEach(b => {
+      b.addEventListener('click', handleEdit);
+    });
+    topicsRows.querySelectorAll('.delete-btn').forEach(b => {
+      b.addEventListener('click', handleDelete);
+    });
+  }
+
+  function handleCheckboxChange(e) {
+    const cb = e.target;
+    const topic = topics.find(t => t.id === cb.dataset.topic);
+    if (!topic) return;
+    const rev = topic.revisions.find(r => r.revisionNumber === parseInt(cb.dataset.revnum));
+    if (!rev) return;
+    rev.completed = cb.checked;
+    saveToStorage();
+    // Update the rev-box class in place
+    const box = cb.closest('.rev-box');
+    if (box) {
+      box.className = 'rev-box ' + getRevBoxClass(rev, getTodayISO());
+      const span = box.querySelector('.rev-check span');
+      if (span) span.textContent = cb.checked ? '✔' : '○';
+    }
+    updateSummaryAndHighlight();
+  }
+
+  function handleEdit(e) {
+    const id = e.currentTarget.dataset.id;
+    const t = topics.find(t => t.id === id);
+    if (!t) return;
+    topicNameInput.value   = t.topicName;
+    lectureDateInput.value = t.lectureDate;
+    editingId = id;
+    saveBtn.textContent = '✏️ Update Topic';
+    cancelBtn.style.display = 'inline-flex';
+    topicNameInput.focus();
+    // Scroll save section into view
+    topicNameInput.closest('.save-section').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  function handleDelete(e) {
+    const id = e.currentTarget.dataset.id;
+    if (!confirm('Delete this topic and all its revision data?')) return;
+    topics = topics.filter(t => t.id !== id);
+    saveToStorage();
+    if (editingId === id) resetForm();
+    renderAllRows();
+  }
+
+  /* ── Save / Update ── */
+  function handleSave() {
+    const name    = topicNameInput.value.trim();
+    const lecDate = lectureDateInput.value;
+    if (!name)    { alert('Please enter a topic name.'); topicNameInput.focus(); return; }
+    if (!lecDate) { alert('Please select a lecture day.'); lectureDateInput.focus(); return; }
+
+    // Validate date format (YYYY-MM-DD)
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(lecDate)) {
+      alert('Invalid date format. Please select a valid date.');
+      return;
+    }
+
+    const revisions = calculateRevisions(lecDate);
+
+    if (editingId) {
+      const idx = topics.findIndex(t => t.id === editingId);
+      if (idx !== -1) {
+        // Preserve completed status for existing revisions if dates match
+        const old = topics[idx];
+        const newRevs = revisions.map(r => {
+          const existing = old.revisions.find(or =>
+            or.revisionNumber === r.revisionNumber && or.revisionDate === r.revisionDate);
+          return existing ? { ...r, completed: existing.completed } : r;
+        });
+        topics[idx] = { ...old, topicName: name, lectureDate: lecDate, revisions: newRevs };
+      }
+    } else {
+      topics.push({ id: generateId(), topicName: name, lectureDate: lecDate, revisions });
+    }
+
+    saveToStorage();
+    resetForm();
+    renderAllRows();
+  }
+
+  /* ── Summary & highlight ── */
+  function updateSummaryAndHighlight() {
+    const selectedDate = filterDateInput.value;
+    const todayISO     = getTodayISO();
+    const displayDate  = selectedDate || todayISO;
+    const matches      = [];
+
+    topics.forEach(t => {
+      t.revisions.forEach(r => {
+        if (r.revisionDate === displayDate) {
+          matches.push({ topicName: t.topicName, revNum: r.revisionNumber, completed: r.completed });
+        }
+      });
+    });
+
+    if (matches.length === 0) {
+      summaryText.textContent = `📭 No revision tasks on ${fullDateStr(displayDate)}`;
+    } else {
+      const lines = matches.map(m => `${m.topicName} – R${m.revNum} (${m.completed ? '✅' : '⏳'})`).join(' · ');
+      summaryText.textContent = `📌 ${fullDateStr(displayDate)}: ${lines}`;
+    }
+
+    // Clear highlights
+    document.querySelectorAll('.rev-box').forEach(b => {
+      b.style.outline = '';
+      b.style.outlineOffset = '';
+    });
+
+    if (selectedDate) {
+      document.querySelectorAll('.rev-box').forEach(b => {
+        const cb = b.querySelector('input[type=checkbox]');
+        if (!cb) return;
+        const t = topics.find(t => t.id === cb.dataset.topic);
+        if (!t) return;
+        const r = t.revisions.find(r => r.revisionNumber === parseInt(cb.dataset.revnum));
+        if (r && r.revisionDate === selectedDate) {
+          b.style.outline = '3px solid var(--accent)';
+          b.style.outlineOffset = '2px';
+        }
+      });
+    }
+  }
+
+  /* ── Modal ── */
+  function showDateTasksModal(date) {
+    date = date || filterDateInput.value || getTodayISO();
+    currentModalDate = date;
+    modalDateTitle.textContent = `📅 Tasks for ${fullDateStr(date)}`;
+
+    const matches = [];
+    topics.forEach(t => {
+      t.revisions.forEach(r => {
+        if (r.revisionDate === date) {
+          matches.push({ topicName: t.topicName, revNum: r.revisionNumber,
+                         instruction: r.instruction, completed: r.completed, date: r.revisionDate });
+        }
+      });
+    });
+
+    matches.sort((a, b) => a.topicName.localeCompare(b.topicName) || a.revNum - b.revNum);
+
+    if (matches.length === 0) {
+      modalTasksList.innerHTML = '<p style="color:var(--text-light); padding:12px 0;">No tasks scheduled for this date.</p>';
+    } else {
+      modalTasksList.innerHTML = matches.map(m => `
+        <div class="task-item">
+          <strong>${m.topicName}</strong> — Revision ${m.revNum}
+          <span style="margin-left:8px;">${m.completed ? '✅ Completed' : '⏳ Pending'}</span><br>
+          <span style="font-size:0.85rem; color:var(--text-light);">${m.instruction}</span><br>
+          <span style="font-size:0.8rem; color:var(--text-light);">📅 ${fullDateStr(m.date)}</span>
+        </div>`).join('');
+    }
+
+    modal.style.display = 'flex';
+  }
+
+  function hideModal() { modal.style.display = 'none'; }
+
+  /* ── PDF EXPORT (jsPDF) ── */
+  function setPdfLoadingState(btn, loading) {
+    if (loading) {
+      btn.dataset.origText = btn.innerHTML;
+      btn.innerHTML = `<span class="pdf-spinner"></span> Generating…`;
+      btn.classList.add('pdf-loading');
+    } else {
+      btn.innerHTML = btn.dataset.origText || btn.innerHTML;
+      btn.classList.remove('pdf-loading');
+    }
+  }
+
+  function exportAllToPdf() {
+    if (!window.jspdf) { alert('PDF library not loaded. Please check your internet connection.'); return; }
+    const btn = exportAllPdfBtn;
+    setPdfLoadingState(btn, true);
+
+    setTimeout(() => {
+      try {
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+
+        doc.setFontSize(14);
+        doc.setFont(undefined, 'bold');
+        doc.text('📘 Saurav Tracks — Full Revision Schedule', 14, 14);
+        doc.setFontSize(9);
+        doc.setFont(undefined, 'normal');
+        doc.text(`Generated: ${fullDateStr(getTodayISO())}  |  Total topics: ${topics.length}`, 14, 21);
+
+        const head = [[
+          'Topic', 'Lecture Day',
+          'R1 (+1d)\nTheory',
+          'R2 (+3d)\nTheory+Q',
+          'R3 (+7d)\nQ+Theory',
+          'R4 (+30d)\nWeak pts',
+          'R5 (+90d)\nFull',
+          'R6 (+190d)\nFull',
+          'R7 (+300d)\nFinal'
+        ]];
+
+        const body = topics.map(t => [
+          t.topicName,
+          formatDate(t.lectureDate),
+          ...t.revisions.map(r =>
+            `${formatDate(r.revisionDate)}\n${r.completed ? '✔ Done' : '○ Pending'}`
+          )
+        ]);
+
+        doc.autoTable({
+          head,
+          body,
+          startY: 26,
+          styles: {
+            fontSize: 7.5,
+            cellPadding: 3,
+            lineColor: [180, 180, 180],
+            lineWidth: 0.2,
+            overflow: 'linebreak',
+            valign: 'top'
+          },
+          headStyles: {
+            fillColor: [37, 99, 235],
+            textColor: 255,
+            fontStyle: 'bold',
+            fontSize: 7,
+            halign: 'center'
+          },
+          columnStyles: {
+            0: { cellWidth: 38, fontStyle: 'bold' },
+            1: { cellWidth: 26, halign: 'center' },
+            2: { cellWidth: 30, halign: 'center' },
+            3: { cellWidth: 30, halign: 'center' },
+            4: { cellWidth: 30, halign: 'center' },
+            5: { cellWidth: 30, halign: 'center' },
+            6: { cellWidth: 30, halign: 'center' },
+            7: { cellWidth: 30, halign: 'center' },
+            8: { cellWidth: 30, halign: 'center' }
+          },
+          alternateRowStyles: { fillColor: [245, 247, 255] },
+          margin: { top: 26, right: 10, bottom: 14, left: 10 },
+          showFoot: 'lastPage',
+          willDrawCell(data) {
+            if (data.section === 'body' && data.column.index >= 2) {
+              const cellText = data.cell.raw || '';
+              if (cellText.includes('✔ Done')) {
+                data.cell.styles.fillColor = [220, 252, 231];
+                data.cell.styles.textColor = [22, 101, 52];
+              }
+            }
+          },
+          didDrawPage(data) {
+            // Footer
+            doc.setFontSize(7);
+            doc.setTextColor(150);
+            doc.text(
+              `Page ${doc.internal.getCurrentPageInfo().pageNumber}  |  Saurav Tracks`,
+              data.settings.margin.left,
+              doc.internal.pageSize.getHeight() - 5
+            );
+            doc.setTextColor(0);
+          }
+        });
+
+        doc.save('Saurav_Tracks_Full.pdf');
+      } catch (err) {
+        console.error('PDF error:', err);
+        alert('PDF generation failed: ' + err.message);
+      } finally {
+        setPdfLoadingState(btn, false);
+      }
+    }, 50);
+  }
+
+  function exportDateTasksPdf(date, btn) {
+    if (!window.jspdf) { alert('PDF library not loaded.'); return; }
+    if (btn) setPdfLoadingState(btn, true);
+
+    setTimeout(() => {
+      try {
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+
+        const matches = [];
+        topics.forEach(t => {
+          t.revisions.forEach(r => {
+            if (r.revisionDate === date) {
+              matches.push({ topic: t.topicName, revNum: r.revisionNumber,
+                             instruction: r.instruction, completed: r.completed, date: r.revisionDate });
+            }
+          });
+        });
+        matches.sort((a, b) => a.topic.localeCompare(b.topic) || a.revNum - b.revNum);
+
+        doc.setFontSize(16);
+        doc.setFont(undefined, 'bold');
+        doc.text('📋 Saurav Tracks — Daily Tasks', 14, 16);
+        doc.setFontSize(11);
+        doc.setFont(undefined, 'normal');
+        doc.text(`Date: ${fullDateStr(date)}`, 14, 24);
+        doc.setFontSize(9);
+        doc.text(`Total tasks: ${matches.length}`, 14, 30);
+
+        if (matches.length === 0) {
+          doc.setFontSize(10);
+          doc.text('No tasks scheduled for this date.', 14, 42);
+        } else {
+          doc.autoTable({
+            head: [['Topic', 'Revision', 'Instruction', 'Status', 'Date']],
+            body: matches.map(m => [
+              m.topic,
+              `R${m.revNum}`,
+              m.instruction,
+              m.completed ? '✔ Done' : '○ Pending',
+              fullDateStr(m.date)
+            ]),
+            startY: 36,
+            styles: { fontSize: 9, cellPadding: 4, overflow: 'linebreak', valign: 'top' },
+            headStyles: { fillColor: [37, 99, 235], textColor: 255, fontStyle: 'bold' },
+            columnStyles: {
+              0: { cellWidth: 55, fontStyle: 'bold' },
+              1: { cellWidth: 18, halign: 'center' },
+              2: { cellWidth: 68 },
+              3: { cellWidth: 24, halign: 'center' },
+              4: { cellWidth: 28 }
+            },
+            willDrawCell(data) {
+              if (data.section === 'body' && data.column.index === 3) {
+                if ((data.cell.raw || '').includes('✔')) {
+                  data.cell.styles.fillColor = [220, 252, 231];
+                  data.cell.styles.textColor = [22, 101, 52];
+                }
+              }
+            },
+            alternateRowStyles: { fillColor: [245, 247, 255] },
+            margin: { top: 36, right: 14, bottom: 14, left: 14 },
+            didDrawPage(data) {
+              doc.setFontSize(7);
+              doc.setTextColor(150);
+              doc.text(
+                `Page ${doc.internal.getCurrentPageInfo().pageNumber}  |  Saurav Tracks`,
+                data.settings.margin.left,
+                doc.internal.pageSize.getHeight() - 5
+              );
+              doc.setTextColor(0);
+            }
+          });
+        }
+
+        const safeDateStr = date.replace(/-/g, '');
+        doc.save(`Saurav_Tasks_${safeDateStr}.pdf`);
+      } catch (err) {
+        console.error('PDF error:', err);
+        alert('PDF generation failed: ' + err.message);
+      } finally {
+        if (btn) setPdfLoadingState(btn, false);
+      }
+    }, 50);
+  }
+
+  function exportFilteredTasksPdf() {
+    const date = filterDateInput.value || getTodayISO();
+    exportDateTasksPdf(date, exportFilteredPdfBtn);
+  }
+
+  function exportModalPdf() {
+    if (!currentModalDate) return;
+    exportDateTasksPdf(currentModalDate, exportModalPdfBtn);
+  }
+
+  /* ── JSON export ── */
+  function exportJson() {
+    const blob = new Blob([JSON.stringify(topics, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'saurav_tracks.json';
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  }
+
+  /* ── Theme ── */
+  function initTheme() {
+    const saved = localStorage.getItem('saurav_theme');
+    if (saved === 'dark') { document.body.classList.add('dark'); darkToggle.checked = true; }
+    darkToggle.addEventListener('change', () => {
+      document.body.classList.toggle('dark');
+      localStorage.setItem('saurav_theme', document.body.classList.contains('dark') ? 'dark' : 'light');
+    });
+  }
+
+  /* ── Events ── */
+  function initEvents() {
+    searchInput.addEventListener('input', renderAllRows);
+    filterDateInput.addEventListener('change', () => { renderAllRows(); updateSummaryAndHighlight(); });
+
+    clearSearchBtn.addEventListener('click', () => {
+      searchInput.value = '';
+      filterDateInput.value = '';
+      renderAllRows();
+    });
+
+    openDateTasksBtn.addEventListener('click', () => {
+      showDateTasksModal(filterDateInput.value || getTodayISO());
+    });
+
+    saveBtn.addEventListener('click', handleSave);
+    cancelBtn.addEventListener('click', resetForm);
+
+    // Allow Enter key to save
+    topicNameInput.addEventListener('keydown', e => { if (e.key === 'Enter') lectureDateInput.focus(); });
+    lectureDateInput.addEventListener('keydown', e => { if (e.key === 'Enter') handleSave(); });
+
+    exportAllPdfBtn.addEventListener('click', exportAllToPdf);
+    exportFilteredPdfBtn.addEventListener('click', exportFilteredTasksPdf);
+    exportJsonBtn.addEventListener('click', exportJson);
+
+    closeModalBtn.addEventListener('click', hideModal);
+    exportModalPdfBtn.addEventListener('click', exportModalPdf);
+    modal.addEventListener('click', e => { if (e.target === modal) hideModal(); });
+
+    // Keyboard: Escape closes modal
+    document.addEventListener('keydown', e => { if (e.key === 'Escape' && modal.style.display !== 'none') hideModal(); });
+  }
+
+  /* ── Init ── */
+  function init() {
+    loadTopics();
+    resetForm();
+    // Default lecture date = today (no min/max restrictions)
+    lectureDateInput.value = getTodayISO();
+    renderAllRows();
+    initTheme();
+    initEvents();
+  }
+
+  init();
+})();
+</script>
+</body>
+</html>
