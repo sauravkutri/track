@@ -1,0 +1,1625 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
+  <title>Saurav Tracks · Revision Tracker</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+  <style>
+    *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; font-family:system-ui,'Segoe UI',Roboto,sans-serif; }
+
+    :root {
+      --bg:#f8fafc; --surface:#ffffff; --text:#0b1e33; --text-light:#475569;
+      --border:#e2e8f0; --accent:#2563eb; --accent-soft:#dbeafe;
+      --shadow:0 2px 8px rgba(0,0,0,.06); --row-hover:#f9f9ff;
+      --rev-default-bg:#eef2ff; --rev-default-text:#1e293b;
+      --completed-bg:#dcfce7; --completed-text:#166534;
+      --today-bg:#fef9c3; --today-text:#92400e;
+      --overdue-bg:#fee2e2; --overdue-text:#991b1b;
+      --sticky-bg:rgba(255,255,255,.93);
+      --folder-bg:#f0f4ff; --folder-hover:#e0e7ff;
+      --cl-bg:#f8fafc; --cl-done-bg:#f0fdf4;
+    }
+    body.dark {
+      --bg:#0b1120; --surface:#1e293b; --text:#f1f5f9; --text-light:#94a3b8;
+      --border:#334155; --accent:#3b82f6; --accent-soft:#1e3a8a;
+      --shadow:0 4px 12px rgba(0,0,0,.4); --row-hover:#263449;
+      --rev-default-bg:#1e293b; --rev-default-text:#cbd5e1;
+      --completed-bg:#14532d; --completed-text:#bbf7d0;
+      --today-bg:#713f12; --today-text:#fde68a;
+      --overdue-bg:#7f1d1d; --overdue-text:#fecaca;
+      --sticky-bg:rgba(30,41,59,.95);
+      --folder-bg:#1e3a5f; --folder-hover:#1e40af;
+      --cl-bg:#1e293b; --cl-done-bg:#14532d;
+    }
+
+    body { background:var(--bg); color:var(--text); min-height:100vh; transition:background .2s,color .2s; }
+    .app { max-width:1700px; margin:0 auto; padding:16px 16px 48px; }
+
+    /* ─── TOP BAR ─── */
+    .top-bar { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; margin-bottom:14px; }
+    h1 { font-weight:800; font-size:clamp(1.4rem,4vw,2rem); letter-spacing:-.02em; display:flex; align-items:center; gap:10px; white-space:nowrap; }
+    .app-logo { font-size:clamp(1.6rem,4.5vw,2.2rem); line-height:1; flex-shrink:0; filter:drop-shadow(0 2px 4px rgba(37,99,235,.25)); }
+    .app-name { background:linear-gradient(145deg,#2563eb,#7c3aed); -webkit-background-clip:text; background-clip:text; color:transparent; }
+    .top-bar-actions { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+    .theme-toggle { display:flex; align-items:center; gap:6px; font-size:1rem; }
+    .theme-toggle label { cursor:pointer; display:flex; align-items:center; gap:4px; }
+
+    /* ─── STICKY SEARCH ─── */
+    .sticky-search { position:sticky; top:0; z-index:40; background:var(--sticky-bg); backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px); padding:10px 16px; margin-bottom:14px; border-radius:48px; border:1px solid var(--border); box-shadow:var(--shadow); display:flex; flex-wrap:wrap; align-items:center; gap:10px; }
+    .search-input-wrapper { flex:2 1 220px; display:flex; align-items:center; background:var(--surface); border-radius:40px; border:1.5px solid var(--border); padding:4px 4px 4px 16px; min-height:44px; }
+    .search-input-wrapper input { border:none; background:transparent; padding:8px 6px; font-size:.95rem; width:100%; outline:none; color:var(--text); min-height:36px; }
+    .search-input-wrapper input::placeholder { color:var(--text-light); }
+    .date-filter { display:flex; align-items:center; gap:6px; background:var(--surface); padding:4px 14px; border-radius:40px; border:1.5px solid var(--border); min-height:44px; flex:1 1 180px; }
+    .date-filter label { font-weight:500; color:var(--text-light); white-space:nowrap; font-size:.9rem; }
+    .date-filter input[type="date"] { border:none; background:transparent; padding:6px 0; color:var(--text); outline:none; font-size:.9rem; min-height:36px; flex:1; }
+
+    /* ─── BUTTONS ─── */
+    button { background:var(--accent); color:white; font-weight:600; border:none; border-radius:40px; padding:10px 20px; font-size:.9rem; cursor:pointer; box-shadow:var(--shadow); transition:opacity .15s,transform .1s; white-space:nowrap; min-height:44px; min-width:44px; -webkit-tap-highlight-color:transparent; touch-action:manipulation; }
+    button:active { transform:scale(.97); }
+    button.secondary { background:transparent; color:var(--text); border:1.5px solid var(--border); box-shadow:none; }
+    button.small { padding:8px 16px; font-size:.85rem; min-height:40px; }
+    button.xs { padding:4px 10px; font-size:.76rem; min-height:30px; border-radius:20px; }
+    button.danger { background:#ef4444; color:white; border:none; }
+
+    /* ─── TODAY BAR ─── */
+    .today-bar { background:linear-gradient(135deg,#1e40af,#4338ca); border-radius:16px; padding:12px 20px; margin-bottom:14px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; color:white; box-shadow:0 4px 16px rgba(37,99,235,.35); }
+    .today-bar-left { display:flex; align-items:center; gap:14px; flex-wrap:wrap; flex:1; min-width:0; }
+    .today-date-badge { background:rgba(255,255,255,.18); border-radius:12px; padding:8px 14px; flex-shrink:0; }
+    .today-date-label { font-size:.68rem; font-weight:700; text-transform:uppercase; letter-spacing:.07em; opacity:.8; margin-bottom:2px; }
+    .today-date-text { font-size:1.1rem; font-weight:800; white-space:nowrap; }
+    .today-tasks-info { flex:1; min-width:0; }
+    .today-tasks-label { font-size:.72rem; font-weight:700; text-transform:uppercase; letter-spacing:.05em; opacity:.75; margin-bottom:3px; }
+    .today-tasks-text { font-size:.83rem; opacity:.95; line-height:1.4; word-break:break-word; }
+    .today-bar button { background:rgba(255,255,255,.95); color:#1e40af; font-weight:700; box-shadow:none; min-height:38px; flex-shrink:0; }
+    .today-bar button:hover { background:white; }
+
+    /* ─── FOLDERS SECTION ─── */
+    .folders-section { background:var(--surface); border-radius:24px; padding:18px 20px; margin-bottom:14px; border:1px solid var(--border); box-shadow:var(--shadow); }
+    .folders-header { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; margin-bottom:14px; }
+    .folders-title { font-weight:700; font-size:1rem; }
+    .folder-tabs { display:flex; gap:6px; margin-bottom:14px; flex-wrap:wrap; }
+    .folder-tab-btn { background:transparent; color:var(--text-light); border:1.5px solid var(--border); padding:6px 16px; font-size:.83rem; min-height:36px; border-radius:20px; font-weight:600; box-shadow:none; }
+    .folder-tab-btn.active { background:var(--accent); color:white; border-color:var(--accent); }
+    .folder-panel { display:none; }
+    .folder-panel.active { display:block; }
+    .folder-grid { display:flex; flex-wrap:wrap; gap:10px; }
+    .folder-card { background:var(--folder-bg); border:1.5px solid var(--border); border-radius:16px; padding:12px 16px; cursor:pointer; transition:.15s; min-width:120px; display:flex; flex-direction:column; gap:4px; -webkit-tap-highlight-color:transparent; }
+    .folder-card:hover { background:var(--folder-hover); border-color:var(--accent); transform:translateY(-2px); box-shadow:0 4px 12px rgba(37,99,235,.15); }
+    .folder-card .fc-icon { font-size:1.5rem; }
+    .folder-card .fc-name { font-weight:700; font-size:.88rem; color:var(--text); }
+    .folder-card .fc-count { font-size:.72rem; color:var(--text-light); }
+    .folder-empty { color:var(--text-light); font-size:.88rem; padding:6px 0; }
+    .cf-tree { display:flex; flex-direction:column; gap:8px; }
+    .cf-node { border:1px solid var(--border); border-radius:14px; overflow:hidden; }
+    .cf-node-header { display:flex; align-items:center; gap:8px; padding:10px 14px; background:var(--folder-bg); flex-wrap:wrap; gap:6px; }
+    .cf-node-name { font-weight:600; font-size:.9rem; flex:1; }
+    .cf-node-count { font-size:.74rem; color:var(--text-light); }
+    .cf-node-actions { display:flex; gap:4px; flex-wrap:wrap; }
+    .cf-children { padding:8px 10px 10px 28px; display:flex; flex-direction:column; gap:6px; }
+    .cf-children.hidden { display:none; }
+
+    /* ─── SAVE SECTION ─── */
+    .save-section { background:var(--surface); border-radius:24px; padding:18px 20px; margin-bottom:14px; border:1px solid var(--border); display:flex; flex-wrap:wrap; align-items:flex-end; gap:14px; box-shadow:var(--shadow); }
+    .input-group { flex:1 1 190px; min-width:150px; }
+    .input-group label { display:block; font-size:.75rem; font-weight:700; text-transform:uppercase; letter-spacing:.04em; color:var(--text-light); margin-bottom:6px; }
+    .input-group input { width:100%; padding:11px 16px; border-radius:30px; border:1.5px solid var(--border); background:var(--bg); color:var(--text); font-size:.95rem; outline:none; min-height:44px; }
+    .input-group input:focus { border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-soft); }
+
+    /* ─── SUMMARY BAR ─── */
+    .summary-bar { margin:0 0 14px; padding:10px 18px; background:var(--accent-soft); border-radius:40px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; font-size:.88rem; font-weight:500; }
+
+    /* ─── TABLE ─── */
+    .table-outer { border-radius:20px; border:1px solid var(--border); overflow:hidden; box-shadow:var(--shadow); }
+    .table-scroll { overflow-x:auto; -webkit-overflow-scrolling:touch; }
+    .table-inner { min-width:2020px; }
+
+    /* ─── HEADER (7 rev + 5 refcl) ─── */
+    .topics-header { display:grid; grid-template-columns:160px 160px 110px repeat(7,minmax(128px,1fr)) repeat(5,minmax(112px,1fr)); background:var(--surface); padding:10px 16px; font-weight:700; font-size:.72rem; color:var(--text-light); border-bottom:2px solid var(--border); text-transform:uppercase; letter-spacing:.04em; position:relative; z-index:2; }
+    .header-cell { display:flex; flex-direction:column; align-items:center; justify-content:center; padding:4px 2px; text-align:center; }
+    .header-rev-label { font-weight:700; }
+    .header-instruction { font-size:.62rem; font-weight:400; opacity:.75; white-space:nowrap; }
+
+    /* ─── TOPIC BLOCK ─── */
+    .topics-rows { position:relative; z-index:1; }
+    .topic-block { border-bottom:1px solid var(--border); }
+    .topic-block:last-child { border-bottom:none; }
+
+    /* ─── TOPIC ROW (7 rev + 5 refcl) ─── */
+    .topic-row { display:grid; grid-template-columns:160px 160px 110px repeat(7,minmax(128px,1fr)) repeat(5,minmax(112px,1fr)); align-items:stretch; background:var(--surface); transition:background .1s; }
+    .topic-row:hover { background:var(--row-hover); }
+    .cell { padding:10px 8px; display:flex; align-items:center; word-break:break-word; border-right:1px solid var(--border); font-size:.88rem; }
+    .cell:last-child { border-right:none; }
+    .topic-name-cell { font-weight:650; gap:5px; flex-wrap:wrap; }
+    .lecture-cell { font-weight:500; font-size:.82rem; }
+    .maintopic-inline { outline:none; border-radius:6px; padding:2px 4px; cursor:text; min-width:20px; display:inline-block; border-bottom:1px dashed transparent; transition:background .1s, border-color .1s; }
+    .maintopic-inline:empty:before { content:attr(placeholder); color:var(--text-light); font-weight:400; font-style:italic; opacity:.6; pointer-events:none; }
+    .maintopic-inline:hover { background:var(--accent-soft); border-bottom-color:var(--accent); }
+    .maintopic-inline:focus { background:var(--accent-soft); border-bottom-color:var(--accent); box-shadow:0 0 0 2px var(--accent-soft); }
+
+    /* ─── REV BOX ─── */
+    .rev-box { background:var(--rev-default-bg); color:var(--rev-default-text); border-radius:16px; padding:8px 8px 6px; width:100%; display:flex; flex-direction:column; gap:4px; border:1px solid var(--border); font-size:.75rem; line-height:1.3; transition:all .1s; }
+    .rev-box.completed { background:var(--completed-bg); color:var(--completed-text); border-left:4px solid #22c55e; }
+    .rev-box.today { background:var(--today-bg); color:var(--today-text); border-left:4px solid #eab308; }
+    .rev-box.overdue { background:var(--overdue-bg); color:var(--overdue-text); border-left:4px solid #ef4444; }
+    .rev-date { font-weight:700; font-size:.78rem; }
+    .rev-short { font-size:.65rem; opacity:.9; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .rev-check { margin-top:2px; display:flex; align-items:center; gap:4px; }
+    .rev-check input[type="checkbox"] { width:20px; height:20px; accent-color:var(--accent); cursor:pointer; flex-shrink:0; }
+    .action-icons { display:flex; gap:3px; margin-left:auto; flex-shrink:0; }
+    .action-icons button { padding:5px 9px; font-size:.75rem; background:transparent; color:var(--text); box-shadow:none; border:1px solid var(--border); min-height:36px; border-radius:20px; }
+
+    /* ─── CHECKLIST ROW ─── */
+    .checklist-row { background:var(--cl-bg); border-top:1px dashed var(--border); padding:8px 16px 10px; }
+    .checklist-label { font-size:.68rem; font-weight:700; color:var(--text-light); text-transform:uppercase; letter-spacing:.05em; margin-bottom:6px; }
+    .checklist-items-wrap { display:flex; flex-wrap:wrap; gap:7px; }
+    .checklist-item { display:flex; align-items:center; gap:6px; background:var(--surface); border:1px solid var(--border); border-radius:20px; padding:5px 12px 5px 8px; flex:1 1 155px; min-width:140px; max-width:260px; transition:background .1s; }
+    .checklist-item.cl-done { background:var(--cl-done-bg); border-color:#86efac; }
+    .checklist-item input[type="checkbox"] { width:18px; height:18px; accent-color:#22c55e; cursor:pointer; flex-shrink:0; }
+    .cl-text { font-size:.78rem; color:var(--text); outline:none; border:none; background:transparent; flex:1; cursor:text; min-width:50px; line-height:1.3; }
+    .cl-text:focus { color:var(--accent); }
+    .cl-done-text { text-decoration:line-through; color:var(--text-light); }
+
+
+    /* ─── REFERENCE CHECKLIST CELLS ─── */
+    .rcl-cell { padding:8px 6px; display:flex; align-items:stretch; border-right:1px solid var(--border); }
+    .rcl-cell:last-child { border-right:none; }
+    .rcl-box { background:#f0fdf4; border:1px solid #86efac; border-radius:14px; padding:7px 8px 6px; width:100%; display:flex; flex-direction:column; gap:5px; font-size:.74rem; line-height:1.3; transition:all .12s; }
+    body.dark .rcl-box { background:#14532d; border-color:#166534; }
+    .rcl-box.rcl-done { background:#dcfce7; border-color:#22c55e; border-left:4px solid #22c55e; }
+    body.dark .rcl-box.rcl-done { background:#166534; }
+    .rcl-text-wrap { display:flex; align-items:flex-start; gap:4px; flex:1; }
+    .rcl-text { font-size:.74rem; color:var(--text); outline:none; border:none; background:transparent; flex:1; cursor:text; min-width:40px; line-height:1.3; resize:none; font-family:inherit; }
+    .rcl-text:focus { color:var(--accent); }
+    .rcl-done-text { text-decoration:line-through; color:var(--text-light); }
+    .rcl-check-row { display:flex; align-items:center; gap:5px; margin-top:2px; }
+    .rcl-check-row input[type="checkbox"] { width:17px; height:17px; accent-color:#22c55e; cursor:pointer; flex-shrink:0; }
+    .rcl-status { font-size:.65rem; color:var(--text-light); }
+    .rcl-box.rcl-done .rcl-status { color:#166534; font-weight:600; }
+    body.dark .rcl-box.rcl-done .rcl-status { color:#bbf7d0; }
+
+    /* ─── RCL HEADER EDITABLE ─── */
+    .rcl-header-cell { position:relative; }
+    .rcl-header-text { display:block; font-weight:700; font-size:.7rem; color:#166534; text-transform:uppercase; letter-spacing:.03em; outline:none; cursor:text; border-bottom:1px dashed transparent; line-height:1.3; padding:1px 2px; border-radius:3px; word-break:break-word; }
+    .rcl-header-text:hover { border-bottom-color:#86efac; background:rgba(220,252,231,.4); }
+    .rcl-header-text:focus { background:rgba(220,252,231,.6); border-bottom-color:#22c55e; }
+    .rcl-mode-toggle { margin-top:4px; }
+    .rcl-mode-sel { font-size:.6rem; padding:2px 4px; border:1px solid #86efac; border-radius:8px; background:#f0fdf4; color:#166534; cursor:pointer; outline:none; width:100%; max-width:88px; }
+    body.dark .rcl-mode-sel { background:#14532d; color:#bbf7d0; border-color:#166534; }
+
+    /* ─── FOLDER TABLE VIEW ─── */
+    .folder-modal-content { max-width:97vw !important; width:97vw !important; }
+    .folder-table-wrap { overflow-x:auto; -webkit-overflow-scrolling:touch; margin-top:12px; border-radius:14px; border:1px solid var(--border); }
+    .folder-table-inner { min-width:2020px; }
+    .folder-table-hdr { display:grid; grid-template-columns:160px 160px 110px repeat(7,minmax(128px,1fr)) repeat(5,minmax(112px,1fr)); background:var(--surface); padding:8px 12px; font-weight:700; font-size:.7rem; color:var(--text-light); border-bottom:2px solid var(--border); text-transform:uppercase; letter-spacing:.04em; }
+    .folder-table-rows .topic-block:last-child { border-bottom:none; }
+    .folder-add-bar { margin-top:14px; display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+
+    /* ─── MODAL ─── */
+    .modal-overlay { position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,.45); backdrop-filter:blur(4px); display:flex; align-items:center; justify-content:center; z-index:1000; padding:16px; }
+    .modal-content { background:var(--surface); border-radius:28px; padding:24px; max-width:680px; width:100%; max-height:85vh; overflow-y:auto; box-shadow:0 20px 60px rgba(0,0,0,.25); border:1px solid var(--border); }
+    .modal-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:18px; flex-wrap:wrap; gap:8px; }
+    .modal-header h3 { font-size:1.05rem; }
+    .task-item { padding:12px; border-bottom:1px solid var(--border); font-size:.9rem; line-height:1.5; }
+    .task-item:last-child { border-bottom:none; }
+    .folder-topic-card { padding:12px 14px; border-radius:16px; border:1px solid var(--border); margin-bottom:8px; background:var(--folder-bg); }
+    .folder-topic-card h4 { font-size:.95rem; margin-bottom:4px; }
+    .ftc-date { font-size:.8rem; color:var(--text-light); margin-bottom:6px; }
+    .ftc-revs { display:flex; flex-wrap:wrap; gap:5px; margin-bottom:6px; }
+    .ftc-rev-badge { font-size:.71rem; padding:3px 8px; border-radius:20px; background:var(--rev-default-bg); border:1px solid var(--border); }
+    .ftc-rev-badge.done { background:var(--completed-bg); color:var(--completed-text); }
+    .ftc-rev-badge.td   { background:var(--today-bg); color:var(--today-text); }
+    .ftc-rev-badge.od   { background:var(--overdue-bg); color:var(--overdue-text); }
+    .ftc-cl { display:flex; flex-wrap:wrap; gap:4px; }
+    .ftc-cl-item { font-size:.73rem; padding:2px 8px; border-radius:20px; background:var(--surface); border:1px solid var(--border); }
+    .ftc-cl-item.done { background:var(--cl-done-bg); border-color:#86efac; color:var(--completed-text); }
+
+    .empty-state { padding:40px 20px; text-align:center; color:var(--text-light); font-size:1rem; background:var(--surface); }
+    #printTasksContainer { display:none; }
+
+    /* ─── PRINT ─── */
+    @media print {
+      body, body.dark { background:white!important; color:black!important; padding:0!important; }
+      .app { padding:0!important; }
+      .sticky-search,.save-section,.summary-bar,.today-bar,.folders-section,.top-bar-actions,.action-icons,.theme-toggle,.modal-overlay,.checklist-row { display:none!important; }
+      h1 { color:#1e293b!important; background:none!important; -webkit-text-fill-color:#1e293b!important; }
+      .table-outer { border:none!important; box-shadow:none!important; overflow:visible!important; }
+      .table-scroll { overflow:visible!important; }
+      .table-inner { min-width:unset!important; width:100%!important; }
+      .topics-header { background:#e2e8f0!important; color:#334155!important; -webkit-print-color-adjust:exact!important; print-color-adjust:exact!important; border-bottom:2px solid #94a3b8!important; grid-template-columns:110px 110px 95px repeat(7,1fr) repeat(5,1fr)!important; font-size:.65rem!important; }
+      .topic-row { break-inside:avoid!important; page-break-inside:avoid!important; border-bottom:1px solid #cbd5e1!important; grid-template-columns:110px 110px 95px repeat(7,1fr) repeat(5,1fr)!important; }
+      .rev-box { border:1px solid #94a3b8!important; -webkit-print-color-adjust:exact!important; print-color-adjust:exact!important; font-size:.65rem!important; padding:4px!important; }
+      .rev-box.completed { background:#dcfce7!important; color:#166534!important; }
+      .rev-box.today     { background:#fef9c3!important; color:#92400e!important; }
+      .rev-box.overdue   { background:#fee2e2!important; color:#991b1b!important; }
+      .cell { padding:6px 4px!important; font-size:.7rem!important; }
+      .rev-date { font-size:.65rem!important; }
+      .rev-check input[type="checkbox"] { width:14px!important; height:14px!important; }
+      @page { margin:12mm 8mm; size:A4 landscape; }
+    }
+
+    /* ─── RESPONSIVE ─── */
+    @media (max-width:900px) {
+      .app { padding:12px 12px 40px; }
+      .sticky-search { border-radius:24px; padding:10px 14px; }
+      .date-filter { flex:1 1 160px; }
+      .save-section { padding:16px; gap:12px; }
+      .input-group { flex:1 1 140px; }
+      .folder-card { min-width:105px; }
+    }
+    @media (max-width:640px) {
+      .app { padding:10px 10px 36px; }
+      h1 { font-size:1.3rem; }
+      .sticky-search { border-radius:18px; padding:10px 12px; position:relative; top:0; }
+      .search-input-wrapper { flex:1 1 100%; }
+      .date-filter { flex:1 1 100%; }
+      .save-section { border-radius:18px; padding:14px; flex-direction:column; gap:10px; }
+      .input-group { flex:1 1 100%; min-width:unset; }
+      .save-section button { width:100%; }
+      .summary-bar { border-radius:18px; padding:10px 14px; flex-direction:column; align-items:flex-start; gap:8px; }
+      .summary-bar button { width:100%; }
+      .top-bar { flex-direction:column; align-items:flex-start; }
+      .top-bar-actions { flex-wrap:wrap; gap:6px; }
+      .top-bar-actions button { flex:1 1 auto; }
+      .modal-content { padding:18px 14px; border-radius:20px; }
+      .modal-header { flex-direction:column; align-items:flex-start; }
+      .today-bar { border-radius:12px; padding:10px 14px; flex-direction:column; align-items:flex-start; }
+      .today-bar button { width:100%; }
+      .folders-section { padding:14px; border-radius:18px; }
+      .checklist-item { flex:1 1 100%; max-width:100%; }
+    }
+
+    /* ─── SCROLLBAR ─── */
+    .table-scroll::-webkit-scrollbar { height:6px; }
+    .table-scroll::-webkit-scrollbar-track { background:var(--bg); }
+    .table-scroll::-webkit-scrollbar-thumb { background:var(--border); border-radius:3px; }
+
+    /* ─── PDF LOADING ─── */
+    .pdf-loading { display:inline-flex; align-items:center; gap:6px; opacity:.7; pointer-events:none; }
+    @keyframes spin { to { transform:rotate(360deg); } }
+    .pdf-spinner { width:14px; height:14px; border:2px solid rgba(255,255,255,.4); border-top-color:white; border-radius:50%; animation:spin .7s linear infinite; display:inline-block; }
+  </style>
+</head>
+<body>
+<div class="app">
+
+  <!-- 1. TOP BAR -->
+  <div class="top-bar">
+    <h1><span class="app-logo">&#128216;</span><span class="app-name">Saurav Tracks</span></h1>
+    <div class="top-bar-actions">
+      <div class="theme-toggle">
+        <span>&#9728;&#65039;</span>
+        <label><input type="checkbox" id="darkModeToggle"> &#127769;</label>
+      </div>
+      <button id="exportAllPdfBtn" class="secondary small">&#128196; Export All PDF</button>
+      <button id="exportJsonBtn" class="secondary small">&#8595; JSON</button>
+    </div>
+  </div>
+
+  <!-- 2. STICKY SEARCH -->
+  <div class="sticky-search">
+    <div class="search-input-wrapper">
+      <input type="text" id="searchInput" placeholder="Search topic or date..." autocomplete="off">
+    </div>
+    <div class="date-filter">
+      <label>Date</label>
+      <input type="date" id="filterDateInput">
+    </div>
+    <button id="clearSearchBtn" class="secondary small">Clear</button>
+    <button id="openDateTasksBtn" class="small secondary">Date tasks</button>
+  </div>
+
+  <!-- 3. TODAY BAR — live date + tasks -->
+  <div class="today-bar">
+    <div class="today-bar-left">
+      <div class="today-date-badge">
+        <div class="today-date-label">Today</div>
+        <div class="today-date-text" id="todayDateText">—</div>
+      </div>
+      <div class="today-tasks-info">
+        <div class="today-tasks-label">Revision tasks today</div>
+        <div class="today-tasks-text" id="todayTasksText">Loading...</div>
+      </div>
+    </div>
+    <button id="exportTodayPdfBtn" class="small">Export tasks PDF</button>
+  </div>
+
+  <!-- 4. FOLDERS SECTION -->
+  <div class="folders-section">
+    <div class="folders-header">
+      <div class="folders-title">&#128193; Folders</div>
+      <button id="createFolderBtn" class="secondary small">+ New Folder</button>
+    </div>
+    <div class="folder-tabs">
+      <button class="folder-tab-btn active" data-tab="month">By Month</button>
+      <button class="folder-tab-btn" data-tab="topic">By Topic</button>
+      <button class="folder-tab-btn" data-tab="subtopic">By Subtopic</button>
+      <button class="folder-tab-btn" data-tab="custom">My Folders</button>
+    </div>
+    <!-- Month panel -->
+    <div class="folder-panel active" id="folderPanelMonth">
+      <div class="folder-grid" id="monthFolderGrid">
+        <span class="folder-empty">No topics saved yet.</span>
+      </div>
+    </div>
+    <!-- Topic panel -->
+    <div class="folder-panel" id="folderPanelTopic">
+      <div class="folder-grid" id="topicFolderGrid">
+        <span class="folder-empty">No topics saved yet.</span>
+      </div>
+    </div>
+    <!-- Subtopic panel -->
+    <div class="folder-panel" id="folderPanelSubtopic">
+      <div class="folder-grid" id="subtopicFolderGrid">
+        <span class="folder-empty">No topics saved yet.</span>
+      </div>
+    </div>
+    <!-- Custom panel -->
+    <div class="folder-panel" id="folderPanelCustom">
+      <div class="cf-tree" id="customFolderTree"></div>
+      <div id="customFolderEmpty" class="folder-empty">No custom folders yet. Click "+ New Folder" to create one.</div>
+    </div>
+  </div>
+
+  <!-- 5. SAVE SECTION (below folders) -->
+  <div class="save-section">
+    <div class="input-group">
+      <label>Topic (Main Category)</label>
+      <input type="text" id="mainTopicInput" placeholder="e.g. Physics, Mathematics">
+    </div>
+    <div class="input-group">
+      <label>Subtopic Name</label>
+      <input type="text" id="topicNameInput" placeholder="e.g. Thermodynamics, Algebra">
+    </div>
+    <div class="input-group">
+      <label>Lecture Day</label>
+      <input type="date" id="lectureDateInput">
+    </div>
+    <button id="saveTopicBtn">Save Topic</button>
+    <button id="cancelEditBtn" class="secondary small" style="display:none;">Cancel</button>
+  </div>
+
+  <!-- 6. SUMMARY BAR -->
+  <div id="summaryBar" class="summary-bar">
+    <span id="summaryText">Select a date to see revision tasks</span>
+    <button id="exportFilteredPdfBtn" class="small">Export tasks PDF</button>
+  </div>
+
+  <!-- 7. TOPICS TABLE — R1 through R6 only -->
+  <div class="table-outer">
+    <div class="table-scroll">
+      <div class="table-inner">
+        <div class="topics-header" id="mainTopicsHeader"></div>
+        <div id="topicsRows" class="topics-rows"></div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /.app -->
+
+<!-- MODAL: date tasks -->
+<div id="dateTasksModal" class="modal-overlay" style="display:none;">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h3 id="modalDateTitle">Tasks for ...</h3>
+      <button id="closeModalBtn" class="secondary small">Close</button>
+    </div>
+    <div id="modalTasksList"></div>
+    <div style="margin-top:18px;display:flex;gap:10px;flex-wrap:wrap;">
+      <button id="exportModalPdfBtn" class="small">Export as PDF</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: folder view -->
+<div id="folderModal" class="modal-overlay" style="display:none;">
+  <div class="modal-content folder-modal-content">
+    <div class="modal-header">
+      <h3 id="folderModalTitle">Folder</h3>
+      <button id="closeFolderModalBtn" class="secondary small">Close</button>
+    </div>
+    <div id="folderModalBody"></div>
+    <div id="folderModalActions" style="margin-top:16px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;"></div>
+  </div>
+</div>
+
+<div id="printTasksContainer"></div>
+
+<script>
+(function(){
+"use strict";
+
+/* ══════════════════════
+   CONSTANTS
+══════════════════════ */
+var STORAGE_KEY      = 'saurav_tracks_v9';
+var FOLDERS_KEY      = 'saurav_folders_v1';
+var RCL_SETTINGS_KEY = 'saurav_rcl_settings_v1';
+var topics  = [];
+var folders = [];
+var rclSettings = {
+  headers: ['Reference Checklist 1st','Reference Checklist 2nd','Reference Checklist 3rd','Reference Checklist 4th','Reference Checklist 5th'],
+  modes:   ['independent','independent','independent','independent','independent']
+};
+var editingId = null;
+var currentModalDate = null;
+
+var REVISION_RULES = [
+  { days:1,   short:'Theory',   full:'Revise only theory' },
+  { days:3,   short:'Theory+Q', full:'Revise theory + attempt questions' },
+  { days:7,   short:'Q+Theory', full:'Revise questions + theory + full revision' },
+  { days:30,  short:'Weak pts', full:'Revise weak points, notes, important questions' },
+  { days:90,  short:'Full',     full:'Revise whole theory + questions' },
+  { days:190, short:'Full',     full:'Revise whole theory + questions' },
+  { days:330, short:'Full',     full:'Revise whole theory + questions' }
+];
+
+var DEFAULT_CHECKLIST_LABELS = [
+  'PYQ attempted or not',
+  'GATE PYQ attempted or not',
+  'ESC PYQ attempted or not',
+  'Conventional questions solved or not',
+  'Workbook completed or not'
+];
+
+var DEFAULT_REFCL_LABELS = ['Reference 1st', 'Reference 2nd', 'Reference 3rd', 'Reference 4th', 'Reference 5th'];
+
+/* ══════════════════════
+   DOM
+══════════════════════ */
+var searchInput          = document.getElementById('searchInput');
+var filterDateInput      = document.getElementById('filterDateInput');
+var clearSearchBtn       = document.getElementById('clearSearchBtn');
+var openDateTasksBtn     = document.getElementById('openDateTasksBtn');
+var mainTopicInput       = document.getElementById('mainTopicInput');
+var topicNameInput       = document.getElementById('topicNameInput');
+var lectureDateInput     = document.getElementById('lectureDateInput');
+var saveBtn              = document.getElementById('saveTopicBtn');
+var cancelBtn            = document.getElementById('cancelEditBtn');
+var topicsRows           = document.getElementById('topicsRows');
+var summaryText          = document.getElementById('summaryText');
+var exportFilteredPdfBtn = document.getElementById('exportFilteredPdfBtn');
+var exportAllPdfBtn      = document.getElementById('exportAllPdfBtn');
+var exportJsonBtn        = document.getElementById('exportJsonBtn');
+var darkToggle           = document.getElementById('darkModeToggle');
+var modal                = document.getElementById('dateTasksModal');
+var modalDateTitle       = document.getElementById('modalDateTitle');
+var modalTasksList       = document.getElementById('modalTasksList');
+var closeModalBtn        = document.getElementById('closeModalBtn');
+var exportModalPdfBtn    = document.getElementById('exportModalPdfBtn');
+var todayDateTextEl      = document.getElementById('todayDateText');
+var todayTasksTextEl     = document.getElementById('todayTasksText');
+var exportTodayPdfBtn    = document.getElementById('exportTodayPdfBtn');
+var createFolderBtn      = document.getElementById('createFolderBtn');
+var folderModal          = document.getElementById('folderModal');
+var folderModalTitle     = document.getElementById('folderModalTitle');
+var folderModalBody      = document.getElementById('folderModalBody');
+var folderModalActions   = document.getElementById('folderModalActions');
+var closeFolderModalBtn  = document.getElementById('closeFolderModalBtn');
+
+/* ══════════════════════
+   HELPERS
+══════════════════════ */
+function toISODate(d) {
+  return d.getFullYear() + '-' +
+    String(d.getMonth()+1).padStart(2,'0') + '-' +
+    String(d.getDate()).padStart(2,'0');
+}
+function getTodayISO() { return toISODate(new Date()); }
+
+function formatDate(iso) {
+  if (!iso) return '';
+  var parts = iso.split('-').map(Number);
+  return new Date(parts[0],parts[1]-1,parts[2]).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'});
+}
+function fullDateStr(iso) {
+  if (!iso) return '';
+  var parts = iso.split('-').map(Number);
+  return new Date(parts[0],parts[1]-1,parts[2]).toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'});
+}
+function addDaysToISO(iso, days) {
+  var p = iso.split('-').map(Number);
+  var dt = new Date(p[0],p[1]-1,p[2]);
+  dt.setDate(dt.getDate()+days);
+  return toISODate(dt);
+}
+function monthKey(iso) { return iso.slice(0,7); }
+function monthLabel(mk) {
+  var p = mk.split('-').map(Number);
+  return new Date(p[0],p[1]-1,1).toLocaleDateString('en-GB',{month:'long',year:'numeric'});
+}
+function generateId() { return Date.now()+'-'+Math.random().toString(36).slice(2); }
+function escH(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+function makeDefaultChecklist() {
+  return DEFAULT_CHECKLIST_LABELS.map(function(t){ return { text:t, done:false }; });
+}
+function makeDefaultRefChecklist() {
+  return DEFAULT_REFCL_LABELS.map(function(t){ return { text:t, done:false }; });
+}
+function calculateRevisions(iso) {
+  return REVISION_RULES.map(function(r,i){
+    return { revisionNumber:i+1, revisionDate:addDaysToISO(iso,r.days), instruction:r.full, shortInstruction:r.short, completed:false };
+  });
+}
+
+/* ══════════════════════
+   STORAGE
+══════════════════════ */
+function loadTopics() {
+  try { topics = JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; } catch(e){ topics=[]; }
+  if (!Array.isArray(topics)) topics = [];
+  topics = topics.filter(Boolean).map(function(t){
+    if (!t.id) t.id = generateId();
+    // MIGRATION: ensure mainTopic field exists (old entries: mainTopic = '', topicName stays as subtopic)
+    if (t.mainTopic === undefined) t.mainTopic = '';
+    // Keep only 7 revisions max
+    if (t.revisions && t.revisions.length > 7) t.revisions = t.revisions.slice(0,7);
+    // Migrate: backfill R7 if topic only has 6 revisions
+    if (t.revisions && t.revisions.length === 6 && t.lectureDate) {
+      t.revisions.push({
+        revisionNumber: 7,
+        revisionDate: addDaysToISO(t.lectureDate, 330),
+        instruction: 'Revise whole theory + questions',
+        shortInstruction: 'Full',
+        completed: false
+      });
+    }
+    // Migrate: ensure checklist exists
+    if (!t.checklist || !Array.isArray(t.checklist)) {
+      t.checklist = makeDefaultChecklist();
+    } else {
+      while (t.checklist.length < 5) {
+        t.checklist.push({ text: DEFAULT_CHECKLIST_LABELS[t.checklist.length], done:false });
+      }
+    }
+    // Migrate: ensure refChecklist exists
+    if (!t.refChecklist || !Array.isArray(t.refChecklist)) {
+      t.refChecklist = makeDefaultRefChecklist();
+    } else {
+      while (t.refChecklist.length < 5) {
+        t.refChecklist.push({ text: DEFAULT_REFCL_LABELS[t.refChecklist.length], done:false });
+      }
+    }
+    return t;
+  });
+}
+function saveToStorage() { localStorage.setItem(STORAGE_KEY, JSON.stringify(topics)); }
+
+function loadFolders() {
+  try { folders = JSON.parse(localStorage.getItem(FOLDERS_KEY)) || []; } catch(e){ folders=[]; }
+  if (!Array.isArray(folders)) folders = [];
+}
+function saveFolders() { localStorage.setItem(FOLDERS_KEY, JSON.stringify(folders)); }
+
+function loadRclSettings() {
+  try {
+    var s = JSON.parse(localStorage.getItem(RCL_SETTINGS_KEY));
+    if (s && s.headers && s.headers.length===5) rclSettings.headers = s.headers;
+    if (s && s.modes && s.modes.length===5) rclSettings.modes = s.modes;
+  } catch(e){}
+}
+function saveRclSettings() { localStorage.setItem(RCL_SETTINGS_KEY, JSON.stringify(rclSettings)); }
+
+/* ══════════════════════
+   FORM
+══════════════════════ */
+function resetForm() {
+  mainTopicInput.value = '';
+  topicNameInput.value = '';
+  lectureDateInput.value = getTodayISO();
+  editingId = null;
+  saveBtn.textContent = 'Save Topic';
+  cancelBtn.style.display = 'none';
+}
+
+/* ══════════════════════
+   FILTER
+══════════════════════ */
+function getFilteredTopics() {
+  var term = searchInput.value.trim().toLowerCase();
+  var fd   = filterDateInput.value;
+  return topics.filter(function(t){
+    if (term) {
+      var nm = t.topicName.toLowerCase().includes(term);
+      var mt = (t.mainTopic||'').toLowerCase().includes(term);
+      var dm = t.lectureDate.includes(term) || t.revisions.some(function(r){ return r.revisionDate.includes(term); });
+      if (!nm && !mt && !dm) return false;
+    }
+    if (fd) {
+      var hm = t.lectureDate===fd || t.revisions.some(function(r){ return r.revisionDate===fd; });
+      if (!hm) return false;
+    }
+    return true;
+  });
+}
+
+/* ══════════════════════
+   REV BOX CLASS
+══════════════════════ */
+function getRevBoxClass(rev, todayISO) {
+  if (rev.completed) return 'completed';
+  if (rev.revisionDate===todayISO) return 'today';
+  if (rev.revisionDate<todayISO) return 'overdue';
+  return '';
+}
+
+/* ══════════════════════
+   RENDER TABLE HEADER
+══════════════════════ */
+function buildHeaderHtml() {
+  var h = '<div class="header-cell">Topic</div>' +
+    '<div class="header-cell">Subtopic</div>' +
+    '<div class="header-cell">Lecture Day</div>' +
+    '<div class="header-cell"><span class="header-rev-label">R1 +1d</span><span class="header-instruction">Theory</span></div>' +
+    '<div class="header-cell"><span class="header-rev-label">R2 +3d</span><span class="header-instruction">Theory+Q</span></div>' +
+    '<div class="header-cell"><span class="header-rev-label">R3 +7d</span><span class="header-instruction">Q+Theory</span></div>' +
+    '<div class="header-cell"><span class="header-rev-label">R4 +30d</span><span class="header-instruction">Weak pts</span></div>' +
+    '<div class="header-cell"><span class="header-rev-label">R5 +90d</span><span class="header-instruction">Full</span></div>' +
+    '<div class="header-cell"><span class="header-rev-label">R6 +190d</span><span class="header-instruction">Full</span></div>' +
+    '<div class="header-cell"><span class="header-rev-label">R7 +330d</span><span class="header-instruction">Full</span></div>';
+  [0,1,2,3,4].forEach(function(idx){
+    var label = rclSettings.headers[idx];
+    var mode  = rclSettings.modes[idx];
+    var modeOpts = '<option value="independent"'+(mode==='independent'?' selected':'')+'>Per-topic</option>' +
+                   '<option value="full-column"'+(mode==='full-column'?' selected':'')+'>All topics</option>';
+    h += '<div class="header-cell rcl-header-cell">' +
+      '<span class="rcl-header-text" contenteditable="true" data-rcl-hdr="'+idx+'" ' +
+        'title="Click to rename this column">'+escH(label)+'</span>' +
+      '<div class="rcl-mode-toggle">' +
+        '<select class="rcl-mode-sel" data-rcl-col="'+idx+'">' + modeOpts + '</select>' +
+      '</div>' +
+    '</div>';
+  });
+  return h;
+}
+
+function renderTableHeader(container) {
+  if (!container) container = document.getElementById('mainTopicsHeader');
+  if (!container) return;
+  container.innerHTML = buildHeaderHtml();
+  // Header label editing
+  container.querySelectorAll('.rcl-header-text').forEach(function(el){
+    el.addEventListener('blur', function(){
+      var idx = parseInt(el.dataset.rclHdr);
+      var newLabel = el.textContent.trim() || ('Reference Checklist '+(idx+1));
+      rclSettings.headers[idx] = newLabel;
+      saveRclSettings();
+      // Update all other header instances (folder modals)
+      document.querySelectorAll('.rcl-header-text[data-rcl-hdr="'+idx+'"]').forEach(function(o){
+        if (o !== el) o.textContent = newLabel;
+      });
+    });
+    el.addEventListener('keydown', function(e){ if(e.key==='Enter'){e.preventDefault();el.blur();} });
+  });
+  // Mode selects
+  container.querySelectorAll('.rcl-mode-sel').forEach(function(sel){
+    sel.addEventListener('change', function(){
+      var idx = parseInt(sel.dataset.rclCol);
+      rclSettings.modes[idx] = sel.value;
+      saveRclSettings();
+      if (sel.value === 'full-column') {
+        // Sync all cells in this column to the text of the first topic that has it
+        var firstText = null;
+        topics.forEach(function(t){
+          if (!firstText && t.refChecklist && t.refChecklist[idx] && t.refChecklist[idx].text)
+            firstText = t.refChecklist[idx].text;
+        });
+        if (firstText) {
+          topics.forEach(function(t){
+            if (t.refChecklist && t.refChecklist[idx]) t.refChecklist[idx].text = firstText;
+          });
+          saveToStorage();
+          document.querySelectorAll('.rcl-text[data-rcl="'+idx+'"]').forEach(function(span){
+            span.textContent = firstText;
+            span.classList.remove('rcl-done-text');
+          });
+        }
+      }
+      // Sync all mode-sel dropdowns for this column
+      document.querySelectorAll('.rcl-mode-sel[data-rcl-col="'+idx+'"]').forEach(function(o){
+        if (o !== sel) o.value = sel.value;
+      });
+    });
+  });
+}
+
+/* ══════════════════════
+   RENDER TOPIC BLOCK
+══════════════════════ */
+function renderTopicBlock(topic, todayISO) {
+  var revHtml = '';
+  topic.revisions.slice(0,7).forEach(function(rev){
+    var cls = getRevBoxClass(rev, todayISO);
+    revHtml += '<div class="cell">' +
+      '<div class="rev-box ' + cls + '" title="' + escH(rev.instruction) + '">' +
+        '<div class="rev-date">' + formatDate(rev.revisionDate) + '</div>' +
+        '<div class="rev-short">' + escH(rev.shortInstruction) + '</div>' +
+        '<div class="rev-check">' +
+          '<input type="checkbox" data-topic="' + topic.id + '" data-revnum="' + rev.revisionNumber + '"' + (rev.completed?' checked':'') + ' aria-label="R' + rev.revisionNumber + '">' +
+          '<span>' + (rev.completed?'&#10004;':'&#9675;') + '</span>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+  });
+
+  // Build reference checklist cells (in-row columns)
+  var rcl = topic.refChecklist || makeDefaultRefChecklist();
+  var rclHtml = '';
+  rcl.forEach(function(item, idx){
+    rclHtml += '<div class="rcl-cell">' +
+      '<div class="rcl-box' + (item.done?' rcl-done':'') + '">' +
+        '<div class="rcl-text-wrap">' +
+          '<span class="rcl-text' + (item.done?' rcl-done-text':'') + '" contenteditable="true" ' +
+            'data-topic="' + topic.id + '" data-rcl="' + idx + '">' + escH(item.text) + '</span>' +
+        '</div>' +
+        '<div class="rcl-check-row">' +
+          '<input type="checkbox" class="rcl-check" ' +
+            'data-topic="' + topic.id + '" data-rcl="' + idx + '"' + (item.done?' checked':'') + '>' +
+          '<span class="rcl-status">' + (item.done?'Done':'Pending') + '</span>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+  });
+
+  return '<div class="topic-block" data-topic-id="' + topic.id + '">' +
+    '<div class="topic-row">' +
+      '<div class="cell topic-name-cell">' +
+        '<span class="maintopic-inline" contenteditable="true" data-id="' + topic.id + '" ' +
+          'title="Click to edit main topic" placeholder="Add topic...">'+escH(topic.mainTopic||'')+'</span>' +
+      '</div>' +
+      '<div class="cell topic-name-cell">' +
+        '<span>' + escH(topic.topicName) + '</span>' +
+        '<span class="action-icons">' +
+          '<button class="edit-btn" data-id="' + topic.id + '" title="Edit">&#9999;&#65039;</button>' +
+          '<button class="delete-btn" data-id="' + topic.id + '" title="Delete">&#128465;&#65039;</button>' +
+        '</span>' +
+      '</div>' +
+      '<div class="cell lecture-cell">' + formatDate(topic.lectureDate) + '</div>' +
+      revHtml +
+      rclHtml +
+    '</div>' +
+  '</div>';
+}
+
+/* ══════════════════════
+   RENDER ALL ROWS
+══════════════════════ */
+function renderAllRows() {
+  var filtered = getFilteredTopics();
+  var todayISO = getTodayISO();
+  if (filtered.length===0) {
+    topicsRows.innerHTML = '<div class="empty-state">No topics yet — add one above.</div>';
+  } else {
+    topicsRows.innerHTML = filtered.map(function(t){ return renderTopicBlock(t,todayISO); }).join('');
+  }
+  renderTableHeader(); // refresh header editable labels mode selects)
+  attachRowEvents();
+  updateSummaryAndHighlight();
+  renderFolders();
+}
+
+/* ══════════════════════
+   ROW EVENTS
+══════════════════════ */
+function attachRowEvents() {
+  topicsRows.querySelectorAll('.rev-check input[type=checkbox]').forEach(function(cb){
+    cb.addEventListener('change', handleRevCheck);
+  });
+  topicsRows.querySelectorAll('.edit-btn').forEach(function(b){
+    b.addEventListener('click', handleEdit);
+  });
+  topicsRows.querySelectorAll('.delete-btn').forEach(function(b){
+    b.addEventListener('click', handleDelete);
+  });
+  // Inline main-topic editing
+  topicsRows.querySelectorAll('.maintopic-inline').forEach(function(el){
+    el.addEventListener('blur', function(){
+      var id = el.dataset.id;
+      var t = topics.find(function(t){ return t.id===id; });
+      if (!t) return;
+      t.mainTopic = el.textContent.trim();
+      saveToStorage();
+      renderFolders();
+    });
+    el.addEventListener('keydown', function(e){ if(e.key==='Enter'){ e.preventDefault(); el.blur(); } });
+  });
+  // Reference checklist events
+  topicsRows.querySelectorAll('.rcl-check').forEach(function(cb){
+    cb.addEventListener('change', handleRclCheck);
+  });
+  topicsRows.querySelectorAll('.rcl-text').forEach(function(el){
+    el.addEventListener('blur', handleRclTextBlur);
+    el.addEventListener('keydown', function(e){ if(e.key==='Enter'){e.preventDefault();el.blur();} });
+  });
+}
+
+function handleRevCheck(e) {
+  var cb = e.target;
+  var t = topics.find(function(t){ return t.id===cb.dataset.topic; });
+  if (!t) return;
+  var rev = t.revisions.find(function(r){ return r.revisionNumber===parseInt(cb.dataset.revnum); });
+  if (!rev) return;
+  rev.completed = cb.checked;
+  saveToStorage();
+  var box = cb.closest('.rev-box');
+  if (box) {
+    box.className = 'rev-box ' + getRevBoxClass(rev, getTodayISO());
+    var sp = box.querySelector('.rev-check span');
+    if (sp) sp.innerHTML = cb.checked ? '&#10004;' : '&#9675;';
+  }
+  updateSummaryAndHighlight();
+  updateTodayBar();
+}
+
+function handleClCheck(e) {
+  var cb = e.target;
+  var t = topics.find(function(t){ return t.id===cb.dataset.topic; });
+  if (!t) return;
+  var idx = parseInt(cb.dataset.cl);
+  if (!t.checklist[idx]) return;
+  t.checklist[idx].done = cb.checked;
+  saveToStorage();
+  var item = cb.closest('.checklist-item');
+  var txt  = item ? item.querySelector('.cl-text') : null;
+  if (item) item.classList.toggle('cl-done', cb.checked);
+  if (txt)  txt.classList.toggle('cl-done-text', cb.checked);
+}
+
+function handleClTextBlur(e) {
+  var el = e.target;
+  var t = topics.find(function(t){ return t.id===el.dataset.topic; });
+  if (!t) return;
+  var idx = parseInt(el.dataset.cl);
+  if (!t.checklist[idx]) return;
+  var newText = el.textContent.trim() || DEFAULT_CHECKLIST_LABELS[idx];
+  t.checklist[idx].text = newText;
+  if (!el.textContent.trim()) el.textContent = newText;
+  saveToStorage();
+}
+
+function handleRclCheck(e) {
+  var cb = e.target;
+  var t = topics.find(function(t){ return t.id===cb.dataset.topic; });
+  if (!t) return;
+  var idx = parseInt(cb.dataset.rcl);
+  if (!t.refChecklist) t.refChecklist = makeDefaultRefChecklist();
+  if (!t.refChecklist[idx]) return;
+  t.refChecklist[idx].done = cb.checked;
+  saveToStorage();
+  var box = cb.closest('.rcl-box');
+  var txt  = box ? box.querySelector('.rcl-text') : null;
+  var stat = box ? box.querySelector('.rcl-status') : null;
+  if (box) box.classList.toggle('rcl-done', cb.checked);
+  if (txt)  txt.classList.toggle('rcl-done-text', cb.checked);
+  if (stat) stat.textContent = cb.checked ? 'Done' : 'Pending';
+}
+
+function handleRclTextBlur(e) {
+  var el = e.target;
+  var idx = parseInt(el.dataset.rcl);
+  var newText = el.textContent.trim() || rclSettings.headers[idx] || DEFAULT_REFCL_LABELS[idx];
+  if (!el.textContent.trim()) el.textContent = newText;
+
+  if (rclSettings.modes[idx] === 'full-column') {
+    // Propagate to ALL topics in this column
+    topics.forEach(function(t){
+      if (!t.refChecklist) t.refChecklist = makeDefaultRefChecklist();
+      if (t.refChecklist[idx]) t.refChecklist[idx].text = newText;
+    });
+    saveToStorage();
+    // Update all visible cells in same column (including this one)
+    document.querySelectorAll('.rcl-text[data-rcl="'+idx+'"]').forEach(function(span){
+      span.textContent = newText;
+    });
+  } else {
+    // Independent – only this topic
+    var t = topics.find(function(t){ return t.id===el.dataset.topic; });
+    if (!t) return;
+    if (!t.refChecklist) t.refChecklist = makeDefaultRefChecklist();
+    if (!t.refChecklist[idx]) return;
+    t.refChecklist[idx].text = newText;
+    saveToStorage();
+  }
+}
+
+function handleEdit(e) {
+  var id = e.currentTarget.dataset.id;
+  var t = topics.find(function(t){ return t.id===id; });
+  if (!t) return;
+  mainTopicInput.value   = t.mainTopic || '';
+  topicNameInput.value   = t.topicName;
+  lectureDateInput.value = t.lectureDate;
+  editingId = id;
+  saveBtn.textContent = 'Update Topic';
+  cancelBtn.style.display = 'inline-flex';
+  mainTopicInput.focus();
+  document.querySelector('.save-section').scrollIntoView({ behavior:'smooth', block:'nearest' });
+}
+
+function handleDelete(e) {
+  var id = e.currentTarget.dataset.id;
+  if (!confirm('Delete this topic and all its revision data?')) return;
+  topics = topics.filter(function(t){ return t.id!==id; });
+  folders.forEach(function(f){ f.topicIds = (f.topicIds||[]).filter(function(tid){ return tid!==id; }); });
+  saveToStorage(); saveFolders();
+  if (editingId===id) resetForm();
+  renderAllRows();
+}
+
+/* ══════════════════════
+   SAVE / UPDATE
+══════════════════════ */
+function handleSave() {
+  var mainTopic = mainTopicInput.value.trim();
+  var name    = topicNameInput.value.trim();
+  var lecDate = lectureDateInput.value;
+  if (!name)    { alert('Please enter a subtopic name.'); topicNameInput.focus(); return; }
+  if (!lecDate) { alert('Please select a lecture day.'); lectureDateInput.focus(); return; }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(lecDate)) { alert('Invalid date.'); return; }
+
+  var revisions = calculateRevisions(lecDate);
+
+  if (editingId) {
+    var idx = topics.findIndex(function(t){ return t.id===editingId; });
+    if (idx!==-1) {
+      var old = topics[idx];
+      var newRevs = revisions.map(function(r){
+        var ex = old.revisions.find(function(or){ return or.revisionNumber===r.revisionNumber && or.revisionDate===r.revisionDate; });
+        return ex ? Object.assign({},r,{completed:ex.completed}) : r;
+      });
+      topics[idx] = Object.assign({},old,{mainTopic:mainTopic,topicName:name,lectureDate:lecDate,revisions:newRevs});
+    }
+  } else {
+    topics.push({ id:generateId(), mainTopic:mainTopic, topicName:name, lectureDate:lecDate, revisions:revisions, checklist:makeDefaultChecklist(), refChecklist:makeDefaultRefChecklist() });
+  }
+
+  saveToStorage();
+  resetForm();
+  renderAllRows();
+}
+
+/* ══════════════════════
+   SUMMARY & HIGHLIGHT
+══════════════════════ */
+function updateSummaryAndHighlight() {
+  var sel   = filterDateInput.value;
+  var today = getTodayISO();
+  var disp  = sel || today;
+  var matches = [];
+  topics.forEach(function(t){
+    t.revisions.forEach(function(r){
+      if (r.revisionDate===disp) matches.push({ topicName:(t.mainTopic?t.mainTopic+' › ':'')+t.topicName, revNum:r.revisionNumber, completed:r.completed });
+    });
+  });
+  if (matches.length===0) {
+    summaryText.textContent = 'No revision tasks on ' + fullDateStr(disp);
+  } else {
+    summaryText.textContent = fullDateStr(disp) + ': ' +
+      matches.map(function(m){ return m.topicName + ' - R' + m.revNum + ' (' + (m.completed?'Done':'Pending') + ')'; }).join(' | ');
+  }
+  document.querySelectorAll('.rev-box').forEach(function(b){ b.style.outline=''; b.style.outlineOffset=''; });
+  if (sel) {
+    document.querySelectorAll('.rev-box').forEach(function(b){
+      var cb = b.querySelector('input[type=checkbox]');
+      if (!cb) return;
+      var t = topics.find(function(t){ return t.id===cb.dataset.topic; });
+      if (!t) return;
+      var r = t.revisions.find(function(r){ return r.revisionNumber===parseInt(cb.dataset.revnum); });
+      if (r && r.revisionDate===sel) { b.style.outline='3px solid var(--accent)'; b.style.outlineOffset='2px'; }
+    });
+  }
+}
+
+/* ══════════════════════
+   TODAY BAR
+══════════════════════ */
+function updateTodayBar() {
+  var today = getTodayISO();
+  todayDateTextEl.textContent = fullDateStr(today);
+  var matches = [];
+  topics.forEach(function(t){
+    t.revisions.forEach(function(r){
+      if (r.revisionDate===today) matches.push({ name:(t.mainTopic?t.mainTopic+' › ':'')+t.topicName, rn:r.revisionNumber, done:r.completed });
+    });
+  });
+  if (matches.length===0) {
+    todayTasksTextEl.textContent = 'No revision tasks scheduled for today';
+  } else {
+    todayTasksTextEl.textContent = matches.map(function(m){
+      return m.name + ' - R' + m.rn + ' (' + (m.done?'Done':'Pending') + ')';
+    }).join('  |  ');
+  }
+}
+
+/* ══════════════════════
+   DATE TASKS MODAL
+══════════════════════ */
+function showDateTasksModal(date) {
+  date = date || filterDateInput.value || getTodayISO();
+  currentModalDate = date;
+  modalDateTitle.textContent = 'Tasks for ' + fullDateStr(date);
+  var matches = [];
+  topics.forEach(function(t){
+    t.revisions.forEach(function(r){
+      if (r.revisionDate===date) matches.push({ topicName:t.topicName, revNum:r.revisionNumber, instruction:r.instruction, completed:r.completed });
+    });
+  });
+  matches.sort(function(a,b){ return a.topicName.localeCompare(b.topicName)||a.revNum-b.revNum; });
+  if (matches.length===0) {
+    modalTasksList.innerHTML = '<p style="color:var(--text-light);padding:12px 0;">No tasks scheduled for this date.</p>';
+  } else {
+    modalTasksList.innerHTML = matches.map(function(m){
+      return '<div class="task-item"><strong>'+escH(m.topicName)+'</strong> - Revision '+m.revNum+' <span style="margin-left:6px;">'+(m.completed?'[Done]':'[Pending]')+'</span><br><span style="font-size:.85rem;color:var(--text-light);">'+escH(m.instruction)+'</span></div>';
+    }).join('');
+  }
+  modal.style.display='flex';
+}
+function hideModal() { modal.style.display='none'; }
+
+/* ══════════════════════
+   FOLDERS
+══════════════════════ */
+function renderFolders() {
+  renderMonthFolders();
+  renderTopicFolders();
+  renderSubtopicFolders();
+  renderCustomFolders();
+}
+
+function renderMonthFolders() {
+  var grid = document.getElementById('monthFolderGrid');
+  if (topics.length===0) { grid.innerHTML='<span class="folder-empty">No topics saved yet.</span>'; return; }
+  var groups = {};
+  topics.forEach(function(t){
+    var mk = monthKey(t.lectureDate);
+    if (!groups[mk]) groups[mk]=[];
+    groups[mk].push(t);
+  });
+  var keys = Object.keys(groups).sort();
+  grid.innerHTML = keys.map(function(k){
+    var cnt = groups[k].length;
+    return '<div class="folder-card" data-ftype="month" data-fkey="'+k+'">' +
+      '<div class="fc-icon">&#128197;</div>' +
+      '<div class="fc-name">'+monthLabel(k)+'</div>' +
+      '<div class="fc-count">'+cnt+' topic'+(cnt!==1?'s':'')+'</div>' +
+    '</div>';
+  }).join('');
+  grid.querySelectorAll('.folder-card').forEach(function(card){
+    card.addEventListener('click', function(){ openMonthFolder(card.dataset.fkey); });
+  });
+}
+
+function renderTopicFolders() {
+  var grid = document.getElementById('topicFolderGrid');
+  if (topics.length===0) { grid.innerHTML='<span class="folder-empty">No topics saved yet.</span>'; return; }
+  var groups = {};
+  topics.forEach(function(t){
+    var raw = (t.mainTopic||'').trim();
+    var key = raw.toLowerCase() || '__none__';
+    var display = raw || '(No Main Topic)';
+    if (!groups[key]) groups[key]={ display:display, items:[] };
+    groups[key].items.push(t);
+  });
+  var keys = Object.keys(groups).sort();
+  grid.innerHTML = keys.map(function(k){
+    var g = groups[k];
+    return '<div class="folder-card" data-ftype="maintopic" data-fkey="'+escH(k)+'">' +
+      '<div class="fc-icon">&#128218;</div>' +
+      '<div class="fc-name">'+escH(g.display)+'</div>' +
+      '<div class="fc-count">'+g.items.length+' entr'+(g.items.length!==1?'ies':'y')+'</div>' +
+    '</div>';
+  }).join('');
+  grid.querySelectorAll('.folder-card').forEach(function(card){
+    card.addEventListener('click', function(){ openMainTopicFolder(card.dataset.fkey); });
+  });
+}
+
+function renderSubtopicFolders() {
+  var grid = document.getElementById('subtopicFolderGrid');
+  if (!grid) return;
+  if (topics.length===0) { grid.innerHTML='<span class="folder-empty">No topics saved yet.</span>'; return; }
+  var groups = {};
+  topics.forEach(function(t){
+    var key = t.topicName.trim().toLowerCase();
+    if (!groups[key]) groups[key]={ display:t.topicName, items:[] };
+    groups[key].items.push(t);
+  });
+  var keys = Object.keys(groups).sort();
+  grid.innerHTML = keys.map(function(k){
+    var g = groups[k];
+    return '<div class="folder-card" data-ftype="subtopic" data-fkey="'+escH(k)+'">' +
+      '<div class="fc-icon">&#128196;</div>' +
+      '<div class="fc-name">'+escH(g.display)+'</div>' +
+      '<div class="fc-count">'+g.items.length+' entr'+(g.items.length!==1?'ies':'y')+'</div>' +
+    '</div>';
+  }).join('');
+  grid.querySelectorAll('.folder-card').forEach(function(card){
+    card.addEventListener('click', function(){ openSubtopicFolder(card.dataset.fkey); });
+  });
+}
+
+function renderCustomFolders() {
+  var tree  = document.getElementById('customFolderTree');
+  var empty = document.getElementById('customFolderEmpty');
+  var roots = folders.filter(function(f){ return !f.parentId; });
+  if (roots.length===0) { tree.innerHTML=''; empty.style.display='block'; return; }
+  empty.style.display='none';
+  tree.innerHTML = roots.map(function(f){ return renderFolderNode(f); }).join('');
+  attachFolderNodeEvents(tree);
+}
+
+function renderFolderNode(folder) {
+  var children = folders.filter(function(f){ return f.parentId===folder.id; });
+  var cnt = (folder.topicIds||[]).length;
+  var childHtml = children.length > 0
+    ? '<div class="cf-children" id="cfc-'+folder.id+'">'+children.map(function(c){ return renderFolderNode(c); }).join('')+'</div>'
+    : '';
+  return '<div class="cf-node" data-fid="'+folder.id+'">' +
+    '<div class="cf-node-header">' +
+      '<span style="font-size:1.1rem">&#128193;</span>' +
+      '<span class="cf-node-name">'+escH(folder.name)+'</span>' +
+      '<span class="cf-node-count">'+cnt+' topic'+(cnt!==1?'s':'')+'</span>' +
+      '<span class="cf-node-actions">' +
+        '<button class="xs secondary cf-open-btn" data-fid="'+folder.id+'">Open</button>' +
+        '<button class="xs secondary cf-sub-btn" data-fid="'+folder.id+'">+ Sub</button>' +
+        '<button class="xs danger cf-del-btn" data-fid="'+folder.id+'">Delete</button>' +
+      '</span>' +
+    '</div>' +
+    childHtml +
+  '</div>';
+}
+
+function attachFolderNodeEvents(root) {
+  root.querySelectorAll('.cf-open-btn').forEach(function(b){
+    b.addEventListener('click', function(e){ e.stopPropagation(); openCustomFolder(b.dataset.fid); });
+  });
+  root.querySelectorAll('.cf-sub-btn').forEach(function(b){
+    b.addEventListener('click', function(e){ e.stopPropagation(); createNewFolder(b.dataset.fid); });
+  });
+  root.querySelectorAll('.cf-del-btn').forEach(function(b){
+    b.addEventListener('click', function(e){
+      e.stopPropagation();
+      if (confirm('Delete folder? Topics inside will NOT be deleted.')) {
+        deleteFolderRecursive(b.dataset.fid);
+        saveFolders(); renderCustomFolders();
+      }
+    });
+  });
+}
+
+function deleteFolderRecursive(fid) {
+  folders.filter(function(f){ return f.parentId===fid; }).forEach(function(c){ deleteFolderRecursive(c.id); });
+  folders = folders.filter(function(f){ return f.id!==fid; });
+}
+
+/* ── Folder table view helpers ── */
+function buildFolderTableHtml(topicList, emptyMsg) {
+  if (topicList.length===0) return '<p style="color:var(--text-light);padding:12px 0;">'+(emptyMsg||'No topics.')+'</p>';
+  var todayISO = getTodayISO();
+  var headerEl = document.createElement('div');
+  renderTableHeader(headerEl);
+  // Clone the header into folder-table-hdr
+  var hdrHtml = '<div class="folder-table-hdr">'+headerEl.innerHTML+'</div>';
+  var rowsHtml = '<div class="folder-table-rows topics-rows">'+
+    topicList.map(function(t){ return renderTopicBlock(t,todayISO); }).join('')+
+  '</div>';
+  return '<div class="folder-table-wrap"><div class="folder-table-inner">'+hdrHtml+rowsHtml+'</div></div>';
+}
+
+function attachFolderTableEvents(container) {
+  // Rev checkboxes
+  container.querySelectorAll('.rev-check input[type=checkbox]').forEach(function(cb){
+    cb.addEventListener('change', handleRevCheck);
+  });
+  // Edit / Delete
+  container.querySelectorAll('.edit-btn').forEach(function(b){ b.addEventListener('click', handleEdit); });
+  container.querySelectorAll('.delete-btn').forEach(function(b){ b.addEventListener('click', handleDelete); });
+  // RCL checkboxes
+  container.querySelectorAll('.rcl-check').forEach(function(cb){
+    cb.addEventListener('change', handleRclCheck);
+  });
+  // RCL text editing
+  container.querySelectorAll('.rcl-text').forEach(function(el){
+    el.addEventListener('blur', handleRclTextBlur);
+    el.addEventListener('keydown', function(e){ if(e.key==='Enter'){e.preventDefault();el.blur();} });
+  });
+  // RCL header editing (in folder header)
+  container.querySelectorAll('.rcl-header-text').forEach(function(el){
+    el.addEventListener('blur', function(){
+      var idx = parseInt(el.dataset.rclHdr);
+      var newLabel = el.textContent.trim() || ('Reference Checklist '+(idx+1));
+      rclSettings.headers[idx] = newLabel;
+      saveRclSettings();
+      document.querySelectorAll('.rcl-header-text[data-rcl-hdr="'+idx+'"]').forEach(function(o){
+        if(o!==el) o.textContent = newLabel;
+      });
+    });
+    el.addEventListener('keydown', function(e){ if(e.key==='Enter'){e.preventDefault();el.blur();} });
+  });
+  // RCL mode selects
+  container.querySelectorAll('.rcl-mode-sel').forEach(function(sel){
+    sel.addEventListener('change', function(){
+      var idx = parseInt(sel.dataset.rclCol);
+      rclSettings.modes[idx] = sel.value;
+      saveRclSettings();
+      document.querySelectorAll('.rcl-mode-sel[data-rcl-col="'+idx+'"]').forEach(function(o){
+        o.value = sel.value;
+      });
+      if (sel.value==='full-column'){
+        var firstText = null;
+        topics.forEach(function(t){
+          if(!firstText && t.refChecklist && t.refChecklist[idx] && t.refChecklist[idx].text)
+            firstText=t.refChecklist[idx].text;
+        });
+        if(firstText){
+          topics.forEach(function(t){
+            if(t.refChecklist&&t.refChecklist[idx]) t.refChecklist[idx].text=firstText;
+          });
+          saveToStorage();
+          document.querySelectorAll('.rcl-text[data-rcl="'+idx+'"]').forEach(function(s){ s.textContent=firstText; });
+        }
+      }
+    });
+  });
+}
+
+function openFolderView(title, topicList, actionsHtml) {
+  folderModalTitle.textContent = title;
+  folderModalBody.innerHTML = buildFolderTableHtml(topicList, 'No topics found.');
+  folderModalActions.innerHTML = actionsHtml || '';
+  // Attach events to the newly rendered table
+  attachFolderTableEvents(folderModalBody);
+  // Wire add-topic button if present
+  var addBtn = document.getElementById('addTopicBtn');
+  if (addBtn) addBtn._wired = false; // handled by caller
+  folderModal.style.display='flex';
+}
+
+function openMonthFolder(mk) {
+  var list = topics.filter(function(t){ return monthKey(t.lectureDate)===mk; });
+  openFolderView('Month: '+monthLabel(mk), list, '');
+}
+
+function openMainTopicFolder(key) {
+  var list;
+  if (key === '__none__') {
+    list = topics.filter(function(t){ return !(t.mainTopic||'').trim(); });
+  } else {
+    list = topics.filter(function(t){ return (t.mainTopic||'').trim().toLowerCase()===key; });
+  }
+  var displayName = list.length>0 ? (list[0].mainTopic||'(No Main Topic)') : key;
+  openFolderView('Topic: '+displayName, list, '');
+}
+
+function openSubtopicFolder(key) {
+  var list = topics.filter(function(t){ return t.topicName.trim().toLowerCase()===key; });
+  var displayName = list.length>0 ? list[0].topicName : key;
+  openFolderView('Subtopic: '+displayName, list, '');
+}
+
+function openCustomFolder(fid) {
+  var folder = folders.find(function(f){ return f.id===fid; });
+  if (!folder) return;
+  var tids = folder.topicIds || [];
+  var fTopics = topics.filter(function(t){ return tids.includes(t.id); });
+  var available = topics.filter(function(t){ return !tids.includes(t.id); });
+  var actHtml = available.length > 0
+    ? '<select id="addTopicSel" style="padding:8px 12px;border-radius:20px;border:1.5px solid var(--border);background:var(--bg);color:var(--text);min-height:40px;font-size:.88rem;flex:1;outline:none;min-width:180px;">' +
+        '<option value="">-- Select topic to add --</option>' +
+        available.map(function(t){ return '<option value="'+t.id+'">'+escH((t.mainTopic?t.mainTopic+' › ':'')+t.topicName)+' ('+formatDate(t.lectureDate)+')</option>'; }).join('') +
+      '</select><button id="addTopicBtn" class="small" style="flex-shrink:0;">Add to Folder</button>'
+    : '<span style="font-size:.85rem;color:var(--text-light);">All topics already in this folder.</span>';
+  var emptyMsg = 'No topics yet. Add one below.';
+  folderModalTitle.textContent = 'Folder: '+folder.name;
+  folderModalBody.innerHTML = fTopics.length===0
+    ? '<p style="color:var(--text-light);padding:10px 0;">'+emptyMsg+'</p>'
+    : buildFolderTableHtml(fTopics);
+  folderModalActions.innerHTML = actHtml;
+  if (fTopics.length>0) attachFolderTableEvents(folderModalBody);
+  var addBtn = document.getElementById('addTopicBtn');
+  if (addBtn) {
+    addBtn.onclick = function(){
+      var sel = document.getElementById('addTopicSel');
+      if(!sel||!sel.value) return;
+      if(!folder.topicIds) folder.topicIds=[];
+      if(!folder.topicIds.includes(sel.value)) folder.topicIds.push(sel.value);
+      saveFolders();
+      openCustomFolder(fid);
+      renderCustomFolders();
+    };
+  }
+  folderModal.style.display='flex';
+}
+
+function createNewFolder(parentId) {
+  var name = prompt(parentId ? 'Sub-folder name:' : 'New folder name:');
+  if (!name || !name.trim()) return;
+  folders.push({ id:generateId(), name:name.trim(), parentId:parentId||null, topicIds:[] });
+  saveFolders();
+  renderCustomFolders();
+  setFolderTab('custom');
+}
+
+function setFolderTab(tab) {
+  document.querySelectorAll('.folder-tab-btn').forEach(function(b){ b.classList.toggle('active', b.dataset.tab===tab); });
+  document.querySelectorAll('.folder-panel').forEach(function(p){ p.classList.remove('active'); });
+  var map = { month:'folderPanelMonth', topic:'folderPanelTopic', subtopic:'folderPanelSubtopic', custom:'folderPanelCustom' };
+  var el = document.getElementById(map[tab]);
+  if (el) el.classList.add('active');
+}
+
+/* ══════════════════════
+   PDF — LOADING STATE
+══════════════════════ */
+function setPdfLoading(btn, on) {
+  if (!btn) return;
+  if (on) {
+    btn.dataset.origText = btn.innerHTML;
+    btn.innerHTML = '<span class="pdf-spinner"></span> Generating...';
+    btn.classList.add('pdf-loading');
+  } else {
+    btn.innerHTML = btn.dataset.origText || btn.innerHTML;
+    btn.classList.remove('pdf-loading');
+  }
+}
+
+/* ══════════════════════
+   PDF — FULL EXPORT
+══════════════════════ */
+function exportAllToPdf() {
+  if (!window.jspdf) { alert('PDF library not loaded.'); return; }
+  var btn = exportAllPdfBtn;
+  setPdfLoading(btn, true);
+  setTimeout(function(){
+    try {
+      var jsPDF = window.jspdf.jsPDF;
+      var doc = new jsPDF({ orientation:'landscape', unit:'mm', format:'a4' });
+      var W = doc.internal.pageSize.getWidth(), H = doc.internal.pageSize.getHeight();
+      var mL=10, mR=10;
+
+      // Header banner
+      doc.setFillColor(37,99,235); doc.rect(0,0,W,22,'F');
+      doc.setTextColor(255,255,255); doc.setFontSize(13); doc.setFont(undefined,'bold');
+      doc.text('SAURAV TRACKS - Full Revision Schedule', mL, 10);
+      doc.setFontSize(8); doc.setFont(undefined,'normal');
+      doc.text('Generated: '+fullDateStr(getTodayISO())+'   |   Topics: '+topics.length, mL, 17);
+      doc.setTextColor(0,0,0);
+
+      // Main table R1-R7 + 5 Reference Checklist cols
+      var head = [['Topic','Subtopic','Lecture Day','R1 +1d','R2 +3d','R3 +7d','R4 +30d','R5 +90d','R6 +190d','R7 +330d'].concat(rclSettings.headers.slice(0,5))];
+      var body = topics.map(function(t){
+        var rcl = t.refChecklist || makeDefaultRefChecklist();
+        return [t.mainTopic||'', t.topicName, formatDate(t.lectureDate)].concat(
+          t.revisions.slice(0,7).map(function(r){
+            return formatDate(r.revisionDate) + '\n' + (r.completed?'[DONE]':'Pending');
+          })
+        ).concat(
+          rcl.slice(0,5).map(function(c){
+            return (c.text||'-') + '\n' + (c.done?'[DONE]':'Pending');
+          })
+        );
+      });
+      doc.autoTable({
+        head:head, body:body, startY:25,
+        styles:{fontSize:6.5,cellPadding:{top:2.5,right:2,bottom:2.5,left:2},lineColor:[200,210,230],lineWidth:.2,overflow:'linebreak',valign:'top',font:'helvetica'},
+        headStyles:{fillColor:[37,99,235],textColor:[255,255,255],fontStyle:'bold',fontSize:6.5,halign:'center',valign:'middle',minCellHeight:8},
+        columnStyles:{
+          0:{cellWidth:22,fontStyle:'bold',halign:'left'},
+          1:{cellWidth:22,fontStyle:'bold',halign:'left'},
+          2:{cellWidth:16,halign:'center'},
+          3:{cellWidth:15,halign:'center'},4:{cellWidth:15,halign:'center'},5:{cellWidth:15,halign:'center'},
+          6:{cellWidth:15,halign:'center'},7:{cellWidth:15,halign:'center'},8:{cellWidth:15,halign:'center'},
+          9:{cellWidth:15,halign:'center'},
+          10:{cellWidth:15,halign:'center',fillColor:[240,253,244]},
+          11:{cellWidth:15,halign:'center',fillColor:[240,253,244]},
+          12:{cellWidth:15,halign:'center',fillColor:[240,253,244]},
+          13:{cellWidth:15,halign:'center',fillColor:[240,253,244]},
+          14:{cellWidth:15,halign:'center',fillColor:[240,253,244]}
+        },
+        alternateRowStyles:{fillColor:[245,248,255]},
+        margin:{top:25,right:8,bottom:14,left:8},
+        willDrawCell:function(d){
+          if(d.section==='body'){
+            var raw=String(d.cell.raw||'');
+            if(raw.includes('[DONE]')){
+              d.cell.styles.fillColor=[220,252,231]; d.cell.styles.textColor=[21,128,61]; d.cell.styles.fontStyle='bold';
+            }
+          }
+        },
+        didDrawPage:function(d){
+          var pg=doc.internal.getCurrentPageInfo().pageNumber;
+          doc.setFontSize(7); doc.setTextColor(140,140,140);
+          doc.text('Saurav Tracks  |  Page '+pg, 8, H-5);
+          doc.text('Generated: '+fullDateStr(getTodayISO()), W-8, H-5, {align:'right'});
+          doc.setTextColor(0,0,0);
+        }
+      });
+
+      // Checklist page
+      doc.addPage();
+      doc.setFillColor(37,99,235); doc.rect(0,0,W,22,'F');
+      doc.setTextColor(255,255,255); doc.setFontSize(13); doc.setFont(undefined,'bold');
+      doc.text('SAURAV TRACKS - PYQ Checklist Status', mL, 10);
+      doc.setFontSize(8); doc.setFont(undefined,'normal');
+      doc.text('Checklist completion status for all topics', mL, 17);
+      doc.setTextColor(0,0,0);
+
+      var clHead = [['Topic','Subtopic','Lecture','1. PYQ','2. GATE PYQ','3. ESC PYQ','4. Conv. Qs','5. Workbook']];
+      var clBody = topics.map(function(t){
+        var cl = t.checklist || makeDefaultChecklist();
+        return [t.mainTopic||'', t.topicName, formatDate(t.lectureDate)].concat(
+          [0,1,2,3,4].map(function(i){ return cl[i]?(cl[i].done?'DONE':'Pending'):'-'; })
+        );
+      });
+      doc.autoTable({
+        head:clHead, body:clBody, startY:26,
+        styles:{fontSize:8,cellPadding:{top:3,right:4,bottom:3,left:4},lineColor:[200,210,230],lineWidth:.25,overflow:'linebreak',valign:'middle',font:'helvetica'},
+        headStyles:{fillColor:[37,99,235],textColor:[255,255,255],fontStyle:'bold',fontSize:8,halign:'center',valign:'middle'},
+        columnStyles:{0:{cellWidth:28,fontStyle:'bold'},1:{cellWidth:28,fontStyle:'bold'},2:{cellWidth:22,halign:'center'},3:{cellWidth:28,halign:'center'},4:{cellWidth:28,halign:'center'},5:{cellWidth:28,halign:'center'},6:{cellWidth:30,halign:'center'},7:{cellWidth:26,halign:'center'}},
+        alternateRowStyles:{fillColor:[245,248,255]},
+        margin:{top:26,right:mR,bottom:14,left:mL},
+        willDrawCell:function(d){
+          if(d.section==='body'&&d.column.index>=3&&String(d.cell.raw||'')==='DONE'){
+            d.cell.styles.fillColor=[220,252,231]; d.cell.styles.textColor=[21,128,61]; d.cell.styles.fontStyle='bold';
+          }
+        },
+        didDrawPage:function(d){
+          var pg=doc.internal.getCurrentPageInfo().pageNumber;
+          doc.setFontSize(7); doc.setTextColor(140,140,140);
+          doc.text('Saurav Tracks - Checklist  |  Page '+pg, mL, H-5);
+          doc.setTextColor(0,0,0);
+        }
+      });
+
+      doc.save('Saurav_Tracks_Full.pdf');
+    } catch(err) {
+      console.error('PDF error:',err); alert('PDF failed: '+err.message);
+    } finally { setPdfLoading(btn,false); }
+  }, 50);
+}
+
+/* ══════════════════════
+   PDF — DATE TASKS
+══════════════════════ */
+function exportDateTasksPdf(date, btn) {
+  if (!window.jspdf) { alert('PDF library not loaded.'); return; }
+  if (btn) setPdfLoading(btn, true);
+  setTimeout(function(){
+    try {
+      var jsPDF = window.jspdf.jsPDF;
+      var doc = new jsPDF({ orientation:'portrait', unit:'mm', format:'a4' });
+      var W = doc.internal.pageSize.getWidth(), H = doc.internal.pageSize.getHeight();
+      var mL=14, mR=14;
+
+      var matches = [];
+      topics.forEach(function(t){
+        t.revisions.slice(0,7).forEach(function(r){
+          if (r.revisionDate===date) matches.push({ mainTopic:t.mainTopic||'', topic:t.topicName, revNum:r.revisionNumber, instruction:r.instruction, completed:r.completed });
+        });
+      });
+      matches.sort(function(a,b){ return a.topic.localeCompare(b.topic)||a.revNum-b.revNum; });
+
+      doc.setFillColor(37,99,235); doc.rect(0,0,W,26,'F');
+      doc.setTextColor(255,255,255); doc.setFontSize(13); doc.setFont(undefined,'bold');
+      doc.text('SAURAV TRACKS - Daily Revision Tasks', mL, 11);
+      doc.setFontSize(9); doc.setFont(undefined,'normal');
+      doc.text('Date: '+fullDateStr(date), mL, 18);
+      doc.text('Total tasks: '+matches.length, W-mR, 18, {align:'right'});
+      doc.setTextColor(0,0,0);
+
+      if (matches.length===0) {
+        doc.setFontSize(11); doc.setTextColor(100,100,100);
+        doc.text('No revision tasks scheduled for this date.', mL, 38);
+        doc.setTextColor(0,0,0);
+      } else {
+        doc.autoTable({
+          head:[['#','Topic','Subtopic','Rev','What To Study','Status']],
+          body:matches.map(function(m,i){ return [String(i+1), m.mainTopic||'', m.topic, 'R'+m.revNum, m.instruction, m.completed?'DONE':'Pending']; }),
+          startY:30,
+          styles:{fontSize:9.5,cellPadding:{top:4,right:5,bottom:4,left:5},lineColor:[200,210,230],lineWidth:.3,overflow:'linebreak',valign:'middle',font:'helvetica'},
+          headStyles:{fillColor:[37,99,235],textColor:[255,255,255],fontStyle:'bold',fontSize:9.5,halign:'center',valign:'middle'},
+          columnStyles:{0:{cellWidth:10,halign:'center',fontStyle:'bold'},1:{cellWidth:30},2:{cellWidth:35,fontStyle:'bold'},3:{cellWidth:12,halign:'center'},4:{cellWidth:64},5:{cellWidth:22,halign:'center',fontStyle:'bold'}},
+          alternateRowStyles:{fillColor:[245,248,255]},
+          margin:{top:30,right:mR,bottom:14,left:mL},
+          willDrawCell:function(d){
+            if(d.section==='body'&&d.column.index===5){
+              var v=String(d.cell.raw||'');
+              if(v==='DONE'){ d.cell.styles.fillColor=[220,252,231]; d.cell.styles.textColor=[21,128,61]; d.cell.styles.fontStyle='bold'; }
+              else { d.cell.styles.fillColor=[254,243,199]; d.cell.styles.textColor=[146,64,14]; }
+            }
+          },
+          didDrawPage:function(d){
+            var pg=doc.internal.getCurrentPageInfo().pageNumber;
+            doc.setFontSize(7); doc.setTextColor(140,140,140);
+            doc.text('Saurav Tracks  |  Page '+pg, mL, H-5);
+            doc.text('Date: '+fullDateStr(date), W-mR, H-5, {align:'right'});
+            doc.setTextColor(0,0,0);
+          }
+        });
+      }
+      doc.save('Saurav_Tasks_'+date.replace(/-/g,'')+'.pdf');
+    } catch(err){
+      console.error('PDF error:',err); alert('PDF failed: '+err.message);
+    } finally { if(btn) setPdfLoading(btn,false); }
+  }, 50);
+}
+
+function exportFilteredTasksPdf() { exportDateTasksPdf(filterDateInput.value||getTodayISO(), exportFilteredPdfBtn); }
+function exportModalPdf()         { if(currentModalDate) exportDateTasksPdf(currentModalDate, exportModalPdfBtn); }
+function exportTodayPdf()         { exportDateTasksPdf(getTodayISO(), exportTodayPdfBtn); }
+
+/* ══════════════════════
+   JSON EXPORT
+══════════════════════ */
+function exportJson() {
+  var blob=new Blob([JSON.stringify(topics,null,2)],{type:'application/json'});
+  var a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='saurav_tracks.json'; a.click();
+  setTimeout(function(){ URL.revokeObjectURL(a.href); },1000);
+}
+
+/* ══════════════════════
+   THEME
+══════════════════════ */
+function initTheme() {
+  var saved=localStorage.getItem('saurav_theme');
+  if(saved==='dark'){ document.body.classList.add('dark'); darkToggle.checked=true; }
+  darkToggle.addEventListener('change', function(){
+    document.body.classList.toggle('dark');
+    localStorage.setItem('saurav_theme', document.body.classList.contains('dark')?'dark':'light');
+  });
+}
+
+/* ══════════════════════
+   EVENTS
+══════════════════════ */
+function initEvents() {
+  searchInput.addEventListener('input', renderAllRows);
+  filterDateInput.addEventListener('change', function(){ renderAllRows(); updateSummaryAndHighlight(); });
+  clearSearchBtn.addEventListener('click', function(){ searchInput.value=''; filterDateInput.value=''; renderAllRows(); });
+  openDateTasksBtn.addEventListener('click', function(){ showDateTasksModal(filterDateInput.value||getTodayISO()); });
+  saveBtn.addEventListener('click', handleSave);
+  cancelBtn.addEventListener('click', resetForm);
+  mainTopicInput.addEventListener('keydown', function(e){ if(e.key==='Enter') topicNameInput.focus(); });
+  topicNameInput.addEventListener('keydown', function(e){ if(e.key==='Enter') lectureDateInput.focus(); });
+  lectureDateInput.addEventListener('keydown', function(e){ if(e.key==='Enter') handleSave(); });
+  exportAllPdfBtn.addEventListener('click', exportAllToPdf);
+  exportFilteredPdfBtn.addEventListener('click', exportFilteredTasksPdf);
+  exportTodayPdfBtn.addEventListener('click', exportTodayPdf);
+  exportJsonBtn.addEventListener('click', exportJson);
+  closeModalBtn.addEventListener('click', hideModal);
+  exportModalPdfBtn.addEventListener('click', exportModalPdf);
+  modal.addEventListener('click', function(e){ if(e.target===modal) hideModal(); });
+  closeFolderModalBtn.addEventListener('click', function(){ folderModal.style.display='none'; });
+  folderModal.addEventListener('click', function(e){ if(e.target===folderModal) folderModal.style.display='none'; });
+  createFolderBtn.addEventListener('click', function(){ createNewFolder(null); });
+  document.querySelectorAll('.folder-tab-btn').forEach(function(btn){
+    btn.addEventListener('click', function(){ setFolderTab(btn.dataset.tab); });
+  });
+  document.addEventListener('keydown', function(e){
+    if(e.key==='Escape'){ hideModal(); folderModal.style.display='none'; }
+  });
+}
+
+/* ══════════════════════
+   INIT
+══════════════════════ */
+function init() {
+  loadTopics();
+  loadFolders();
+  loadRclSettings();
+  resetForm();
+  renderTableHeader(); // build header before rows
+  renderAllRows();
+  updateTodayBar();
+  setInterval(updateTodayBar, 60000);
+  initTheme();
+  initEvents();
+}
+
+init();
+})();
+</script>
+</body>
+</html>
